@@ -1,3 +1,17 @@
+[![CI](https://github.com/Soarezzsemj/arremata/actions/workflows/ci.yml/badge.svg)](https://github.com/Soarezzsemj/arremata/actions/workflows/ci.yml)
+[![CD](https://github.com/Soarezzsemj/arremata/actions/workflows/cd.yml/badge.svg)](https://github.com/Soarezzsemj/arremata/actions/workflows/cd.yml)
+[![Deploy](https://img.shields.io/badge/deploy-online-2ea44f?logo=vercel&logoColor=white)](https://arremata-lyart.vercel.app)
+![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=nodedotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![Render](https://img.shields.io/badge/API-Render-46E3B7?logo=render&logoColor=black)
+![Vercel](https://img.shields.io/badge/Front-Vercel-000000?logo=vercel&logoColor=white)
+
 # Arremata
 
 Casa de leilões online feita para o teste técnico Elite Dev da Verzel. Um leiloeiro cria lotes a partir de obras de arte da API pública do Art Institute of Chicago, e licitantes dão lances ao vivo com saldo simulado. O histórico de lances pode ser auditado publicamente.
