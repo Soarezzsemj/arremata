@@ -108,9 +108,3 @@ arremata/
 ├── docker-compose.yml
 └── render.yaml         blueprint do deploy no Render
 ```
-
-## Documentação
-
-- [Requisitos do teste](docs/REQUISITOS.md): o enunciado organizado.
-- [Guia do projeto](docs/GUIA_DO_PROJETO.md): decisões técnicas, endpoints, modelo de dados e regras.
-- [CI/CD](docs/CICD.md): passo a passo para configurar GitHub, Render e Vercel.
