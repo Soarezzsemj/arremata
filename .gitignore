@@ -1,0 +1,13 @@
+# Dependências e builds
+node_modules/
+dist/
+coverage/
+
+# Variáveis de ambiente (só os .env.example são versionados)
+.env
+.env.*
+!.env.example
+
+# Logs e lixo do sistema
+*.log
+.DS_Store

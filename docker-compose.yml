@@ -1,0 +1,47 @@
+# Sobe o projeto inteiro: docker compose up --build  →  http://localhost:8080
+# As variáveis vêm do .env da raiz (cp .env.example .env). Sem .env, usa os padrões abaixo,
+# que servem só para rodar localmente.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-arremata}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arremata}
+      POSTGRES_DB: ${POSTGRES_DB:-arremata}
+    ports:
+      # Exposto para poder rodar a API fora do Docker apontando para este banco
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # A API só sobe depois que o Postgres aceita conexões
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3333
+      DATABASE_URL: postgresql://${POSTGRES_USER:-arremata}:${POSTGRES_PASSWORD:-arremata}@db:5432/${POSTGRES_DB:-arremata}
+      # O front e a API ficam na mesma origem (o nginx faz proxy), mas deixamos o CORS certo mesmo assim
+      CORS_ORIGIN: http://localhost:8080
+      JWT_SECRET: ${JWT_SECRET:-segredo-jwt-so-para-rodar-local}
+      CHAIN_SECRET: ${CHAIN_SECRET:-segredo-chain-so-para-rodar-local}
+    command: npm run start:docker
+
+  web:
+    build: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  db-data:

@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (tipos e testes)
+    runs-on: ubuntu-latest
+
+    # Postgres de verdade para os testes que usam banco
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: arremata
+          POSTGRES_PASSWORD: arremata
+          POSTGRES_DB: arremata_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arremata -d arremata_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://arremata:arremata@localhost:5432/arremata_test
+      RUN_DB_TESTS: "1"
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar o Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar o Prisma Client
+        run: npx prisma generate
+
+      - name: Criar as tabelas no banco de teste
+        run: npx prisma db push --skip-generate
+
+      - name: Verificar tipos
+        run: npm run typecheck
+
+      - name: Rodar os testes
+        run: npm test
+
+  frontend:
+    name: Frontend (tipos e build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar o Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar tipos
+        run: npm run typecheck
+
+      - name: Gerar o build
+        run: npm run build
+
+  docker:
+    name: Docker (build das imagens)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      # Sem .env no CI: o compose usa os valores padrão
+      - name: Construir as imagens do docker compose
+        run: docker compose build

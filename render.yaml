@@ -1,0 +1,34 @@
+# Blueprint do Render: cria a API (Docker) e o banco Postgres.
+# Passo a passo em docs/CICD.md.
+
+services:
+  - type: web
+    name: arremata-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    # O deploy é disparado pelo GitHub Actions (cd.yml) só depois que o CI passa
+    autoDeploy: false
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: arremata-db
+          property: connectionString
+      # O Render gera valores aleatórios para os segredos
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CHAIN_SECRET
+        generateValue: true
+      # URL do front na Vercel; preenchida à mão no painel do Render
+      - key: CORS_ORIGIN
+        sync: false
+
+databases:
+  - name: arremata-db
+    plan: free
+    databaseName: arremata
+    user: arremata

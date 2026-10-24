@@ -1,0 +1,5 @@
+@import 'tailwindcss';
+
+/* O modo escuro é controlado pela classe "dark" no <html>, e não só pela preferência do sistema,
+   para o usuário poder escolher no botão. */
+@custom-variant dark (&:where(.dark, .dark *));

@@ -1,0 +1,61 @@
+name: CD
+
+# Só faz deploy depois que o CI passou num push para a main
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy (Render e Vercel)
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Disparar o deploy da API no Render
+        env:
+          HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "::error::O secret RENDER_DEPLOY_HOOK_URL não foi configurado"
+            exit 1
+          fi
+          curl --fail --silent --show-error -X POST "$HOOK_URL"
+
+      - name: Disparar o deploy do front na Vercel
+        env:
+          HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "::error::O secret VERCEL_DEPLOY_HOOK_URL não foi configurado"
+            exit 1
+          fi
+          curl --fail --silent --show-error -X POST "$HOOK_URL"
+
+      # O Render leva alguns minutos para construir a imagem, então tentamos várias vezes
+      - name: Teste de fumaça (GET /api/health)
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          if [ -z "$API_URL" ]; then
+            echo "::error::A variável API_URL não foi configurada no repositório"
+            exit 1
+          fi
+
+          # Espera um pouco para o deploy começar antes da primeira tentativa
+          sleep 60
+
+          for tentativa in $(seq 1 20); do
+            status=$(curl --silent --output /dev/null --write-out "%{http_code}" --max-time 30 "$API_URL/api/health" || true)
+            echo "Tentativa $tentativa: HTTP $status"
+            if [ "$status" = "200" ]; then
+              echo "API no ar!"
+              exit 0
+            fi
+            sleep 30
+          done
+
+          echo "::error::A API não respondeu 200 em $API_URL/api/health"
+          exit 1
