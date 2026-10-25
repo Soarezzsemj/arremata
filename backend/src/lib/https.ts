@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import { AppError } from "./errors";
+import { AppError, badRequest } from "./errors";
+import { ZodSchema } from "zod";
+import path from "path";
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<unknown>;
 
@@ -24,4 +26,21 @@ if (err instanceof SyntaxError && "status" in err && err.status === 400) {
 
 console.error(err);
 return res.status(500).json({error: { code: "INTERNAL", message: "Erro interno do servidor." },});
+}
+
+export function validate(schema: ZodSchema){
+    return(req: Request, res: Response, next: NextFunction) =>  {
+        const result = schema.safeParse(req.body);
+
+        if (!result.success) {
+            const issues = result.error.issues.map((i) => ({
+                path: i.path.join("."),
+                message: i.message,
+            }));
+            throw badRequest("Dados invalidos", {issues});
+        }
+
+        req.body = result.data;
+        next();
+    };
 }
