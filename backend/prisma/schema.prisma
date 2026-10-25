@@ -1,5 +1,14 @@
-// Schema do banco. Por enquanto só tem a configuração básica;
-// os models de verdade (User, Lot, Bid...) entram nos próximos passos.
+// User 1:1 Wallet
+
+// Wallet 1:N LedgerEntry
+
+// User(leiloeiro) 1:N Lot
+
+// Lot 1:N Bid
+
+// Bid N:1 User(licitante) e User(licitante) 1:N Bid
+
+// Lot 1:0..1 Receipt (so vai ter comprovante se for vendido)
 
 generator client {
   provider = "prisma-client-js"
@@ -8,4 +17,113 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum Role {
+  AUCTIONEER
+  BIDDER
+}
+
+enum LedgerType {
+  DEPOSIT
+  HOLD
+  RELEASE
+  SETTLE_DEBIT
+  SETTLE_CREDIT
+}
+
+enum LotStatus {
+  ACTIVE
+  CANCELLED
+  SETTLED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime  @default(now())
+  wallet       Wallet?
+  lotsCreated  Lot[]     @relation("AuctioneerLots")
+  lotsLeading  Lot[]     @relation("LeaderLots")
+  bids         Bid[]
+  wins         Receipt[]
+}
+
+model Wallet {
+  id             String        @id @default(uuid())
+  userId         String        @unique
+  user           User          @relation(fields: [userId], references: [id])
+  totalCents     Int           @default(0)
+  committedCents Int           @default(0)
+  entries        LedgerEntry[]
+}
+
+model LedgerEntry {
+  id          String     @id @default(uuid())
+  walletId    String
+  wallet      Wallet     @relation(fields: [walletId], references: [id])
+  type        LedgerType
+  amountCents Int
+  lotId       String?
+  createdAt   DateTime   @default(now())
+
+  @@index([walletId])
+}
+
+model Lot {
+  id                String    @id @default(uuid())
+  auctioneerId      String
+  auctioneer        User      @relation("AuctioneerLots", fields: [auctioneerId], references: [id])
+  externalSource    String
+  externalId        String
+  title             String
+  imageUrl          String?
+  attributes        Json
+  startPriceCents   Int
+  minIncrementCents Int
+  startsAt          DateTime
+  endsAt            DateTime
+  status            LotStatus @default(ACTIVE)
+  currentPriceCents Int?
+  bidCount          Int       @default(0)
+  headHash          String?
+  createdAt         DateTime  @default(now())
+  leaderId          String?
+  leader            User?     @relation("LeaderLots", fields: [leaderId], references: [id])
+  bids              Bid[]
+  receipt           Receipt?
+
+  @@index([endsAt])
+}
+
+model Bid {
+  id          String   @id @default(uuid())
+  lotId       String
+  lot         Lot      @relation(fields: [lotId], references: [id])
+  bidderId    String
+  bidder      User     @relation(fields: [bidderId], references: [id])
+  seq         Int
+  amountCents Int
+  prevHash    String
+  hash        String
+  createdAt   DateTime @default(now())
+
+  @@unique([lotId, seq])
+  @@index([lotId, seq])
+}
+
+model Receipt {
+  id          String   @id @default(uuid())
+  lotId       String   @unique
+  lot         Lot      @relation(fields: [lotId], references: [id])
+  token       String   @unique
+  winnerId    String
+  winner      User     @relation(fields: [winnerId], references: [id])
+  amountCents Int
+  bidCount    Int
+  finalHash   String
+  issuedAt    DateTime @default(now())
 }
