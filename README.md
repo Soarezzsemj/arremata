@@ -1,5 +1,19 @@
 # Arremata
 
+[![CI](https://github.com/Soarezzsemj/arremata/actions/workflows/ci.yml/badge.svg)](https://github.com/Soarezzsemj/arremata/actions/workflows/ci.yml)
+[![CD](https://github.com/Soarezzsemj/arremata/actions/workflows/cd.yml/badge.svg)](https://github.com/Soarezzsemj/arremata/actions/workflows/cd.yml)
+[![Deploy](https://img.shields.io/badge/deploy-online-2ea44f?logo=vercel&logoColor=white)](https://arremata-lyart.vercel.app)
+![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=nodedotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![Render](https://img.shields.io/badge/API-Render-46E3B7?logo=render&logoColor=black)
+![Vercel](https://img.shields.io/badge/Front-Vercel-000000?logo=vercel&logoColor=white)
+
 Casa de leilões online feita para o teste técnico Elite Dev da Verzel. Um leiloeiro cria lotes a partir de obras de arte da API pública do Art Institute of Chicago, e licitantes dão lances ao vivo com saldo simulado. O histórico de lances pode ser auditado publicamente.
 
 ## Stack
@@ -83,6 +97,68 @@ Verificação de tipos: `npm run typecheck` (no `backend/` e no `frontend/`).
 | `npm test` | Roda os testes com Vitest |
 | `npm run seed` / `npm run seed:reset` | Cria os dados de demonstração / apaga e recria |
 
+## CI/CD
+
+```mermaid
+flowchart LR
+  push([git push na main]) --> ci
+
+  subgraph ci [CI - GitHub Actions]
+    be[Backend<br/>typecheck e testes com banco]
+    fe[Frontend<br/>typecheck e build]
+    dk[Docker<br/>compose build]
+  end
+
+  ci -->|tudo verde| cd
+  ci -.->|falhou| stop([Nada e publicado])
+
+  subgraph cd [CD - GitHub Actions]
+    hr[Hook do Render]
+    hv[Hook da Vercel]
+    smoke[Teste de fumaca<br/>GET /api/health]
+  end
+
+  hr --> api[(API e PostgreSQL<br/>Render)]
+  hv --> web[Front React<br/>Vercel]
+  api --> smoke
+  smoke --> ok([No ar])
+
+  classDef good fill:#1f883d,color:#fff,stroke:#1f883d
+  classDef bad fill:#cf222e,color:#fff,stroke:#cf222e
+  class ok good
+  class stop bad
+```
+
+<details>
+<summary><b>O que o CI verifica</b></summary>
+
+- **Backend:** instala dependências, gera o Prisma, sobe um PostgreSQL de teste, roda o typecheck e todos os testes (inclusive os de concorrência dos lances).
+- **Frontend:** typecheck e build de produção.
+- **Docker:** garante que as imagens da API e do front continuam construindo.
+
+Roda em todo push e pull request.
+</details>
+
+<details>
+<summary><b>O que o CD faz</b></summary>
+
+- Só dispara quando o CI termina **com sucesso** na `main`.
+- Chama os *deploy hooks* do Render (API) e da Vercel (front).
+- Espera o serviço reiniciar e confirma que `/api/health` responde 200.
+- O Auto-Deploy do Render fica desligado de propósito: nada vai ao ar sem passar pelo CI.
+</details>
+
+<details>
+<summary><b>Links do ambiente</b></summary>
+
+| Parte | Onde | Link |
+|---|---|---|
+| Front | Vercel | https://arremata-lyart.vercel.app |
+| API | Render | https://arremata-api.onrender.com/api/health |
+| Banco | PostgreSQL (Render) | privado |
+| Pipeline | GitHub Actions | [ver execuções](https://github.com/Soarezzsemj/arremata/actions) |
+</details>
+
 ## Estrutura de pastas
 
 ```
@@ -103,7 +179,6 @@ arremata/
 │       ├── components/
 │       ├── lib/        cliente da API e tema
 │       └── pages/
-├── docs/               documentação
 ├── .github/workflows/  CI e CD
 ├── docker-compose.yml
 └── render.yaml         blueprint do deploy no Render
