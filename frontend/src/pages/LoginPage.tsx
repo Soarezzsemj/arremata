@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { errorMessage } from '../lib/format';
-import { buttonClass, inputClass } from '../lib/ui';
+import { Square } from '../components/Square';
+import { buttonClass, containerClass, errorClass, fieldLabelClass, inputClass, textLinkClass } from '../lib/ui';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -27,34 +28,40 @@ export function LoginPage() {
   }
 
   return (
-    <section className="mx-auto max-w-sm py-12">
-      <h1 className="text-2xl font-bold">Entrar</h1>
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
-        <label className="block text-sm">
-          E-mail
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
-        </label>
-        <label className="block text-sm">
-          Senha
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
-          />
-        </label>
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-        <button type="submit" disabled={busy} className={buttonClass}>
-          {busy ? 'Entrando...' : 'Entrar'}
-        </button>
-      </form>
-      <p className="mt-4 text-sm">
-        Não tem conta?{' '}
-        <Link to="/register" className="text-indigo-600 hover:underline dark:text-indigo-400">
-          Cadastre-se
-        </Link>
-      </p>
+    <section className={`${containerClass} py-12 md:py-20`}>
+      <div className="mx-auto max-w-md">
+        <p className="ui-label flex items-center gap-2 text-muted">
+          <Square />
+          Conta
+        </p>
+        <h1 className="ui-display mt-4 text-5xl leading-[0.9] md:text-6xl">Entrar</h1>
+        <form onSubmit={onSubmit} className="mt-10 space-y-6 border-t border-line pt-8">
+          <label className={fieldLabelClass}>
+            E-mail
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+          </label>
+          <label className={fieldLabelClass}>
+            Senha
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          {error && <p role="alert" className={errorClass}>{error}</p>}
+          <button type="submit" disabled={busy} className={`${buttonClass} w-full`}>
+            {busy ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
+        <p className="mt-8 border-t border-line pt-6 text-sm">
+          Não tem conta?{' '}
+          <Link to="/register" className={textLinkClass}>
+            Cadastre-se
+          </Link>
+        </p>
+      </div>
     </section>
   );
 }

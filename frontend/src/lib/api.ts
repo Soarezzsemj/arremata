@@ -1,10 +1,7 @@
-// Endereço base da API. Em produção (Vercel) aponta para o Render;
-// localmente e no Docker fica "/api" e o proxy (Vite ou nginx) repassa.
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+export const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const TOKEN_KEY = 'token';
 
-// Formato de erro padrão que a API devolve
 export type ApiError = {
   code: string;
   message: string;
@@ -24,7 +21,7 @@ export function setToken(token: string | null) {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
-    // Sem localStorage o login só não sobrevive ao recarregar a página
+    // Sem localStorage o login só não sobrevive quando recarregar a página
   }
 }
 

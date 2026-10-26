@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { errorMessage } from '../lib/format';
 import type { Role } from '../lib/types';
-import { buttonClass, inputClass } from '../lib/ui';
+import { Square } from '../components/Square';
+import { buttonClass, containerClass, errorClass, fieldLabelClass, inputClass, textLinkClass } from '../lib/ui';
 
 export function RegisterPage() {
   const { register } = useAuth();
@@ -30,46 +31,52 @@ export function RegisterPage() {
   }
 
   return (
-    <section className="mx-auto max-w-sm py-12">
-      <h1 className="text-2xl font-bold">Criar conta</h1>
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
-        <label className="block text-sm">
-          Nome
-          <input required minLength={2} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-        </label>
-        <label className="block text-sm">
-          E-mail
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
-        </label>
-        <label className="block text-sm">
-          Senha (mínimo 6 caracteres)
-          <input
-            type="password"
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
-          />
-        </label>
-        <label className="block text-sm">
-          Perfil
-          <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputClass}>
-            <option value="BIDDER">Licitante (quero dar lances)</option>
-            <option value="AUCTIONEER">Leiloeiro (quero criar lotes)</option>
-          </select>
-        </label>
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-        <button type="submit" disabled={busy} className={buttonClass}>
-          {busy ? 'Criando...' : 'Criar conta'}
-        </button>
-      </form>
-      <p className="mt-4 text-sm">
-        Já tem conta?{' '}
-        <Link to="/login" className="text-indigo-600 hover:underline dark:text-indigo-400">
-          Entrar
-        </Link>
-      </p>
+    <section className={`${containerClass} py-12 md:py-20`}>
+      <div className="mx-auto max-w-md">
+        <p className="ui-label flex items-center gap-2 text-muted">
+          <Square />
+          Conta
+        </p>
+        <h1 className="ui-display mt-4 text-5xl leading-[0.9] md:text-6xl">Criar conta</h1>
+        <form onSubmit={onSubmit} className="mt-10 space-y-6 border-t border-line pt-8">
+          <label className={fieldLabelClass}>
+            Nome
+            <input required minLength={2} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+          </label>
+          <label className={fieldLabelClass}>
+            E-mail
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+          </label>
+          <label className={fieldLabelClass}>
+            Senha (mínimo 6 caracteres)
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className={fieldLabelClass}>
+            Perfil
+            <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputClass}>
+              <option value="BIDDER">Licitante (quero dar lances)</option>
+              <option value="AUCTIONEER">Leiloeiro (quero criar lotes)</option>
+            </select>
+          </label>
+          {error && <p role="alert" className={errorClass}>{error}</p>}
+          <button type="submit" disabled={busy} className={`${buttonClass} w-full`}>
+            {busy ? 'Criando...' : 'Criar conta'}
+          </button>
+        </form>
+        <p className="mt-8 border-t border-line pt-6 text-sm">
+          Já tem conta?{' '}
+          <Link to="/login" className={textLinkClass}>
+            Entrar
+          </Link>
+        </p>
+      </div>
     </section>
   );
 }

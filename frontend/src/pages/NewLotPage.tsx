@@ -4,7 +4,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { errorMessage } from '../lib/format';
 import type { ExternalItem, LotSummary } from '../lib/types';
-import { buttonClass, inputClass, secondaryButtonClass } from '../lib/ui';
+import { ArtImage } from '../components/ArtImage';
+import { Frame } from '../components/Frame';
+import { SkeletonLine } from '../components/Skeleton';
+import { Square } from '../components/Square';
+import {
+  buttonClass,
+  containerClass,
+  errorClass,
+  fieldLabelClass,
+  inputClass,
+  secondaryButtonClass,
+  textLinkClass,
+} from '../lib/ui';
 
 function toLocalInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -72,78 +84,118 @@ export function NewLotPage() {
   }
 
   return (
-    <section className="py-8">
-      <h1 className="text-2xl font-bold">Novo lote</h1>
+    <section className={`${containerClass} py-10 md:py-16`}>
+      <p className="ui-label flex items-center gap-2 text-muted">
+        <Square />
+        Leiloeiro
+      </p>
+      <h1 className="ui-display mt-4 text-5xl leading-[0.9] md:text-7xl">Novo lote</h1>
 
       {!selected && (
         <>
-          <form onSubmit={onSearch} className="mt-4 flex gap-2">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar obra (ex.: monet, water lilies)"
-              className={inputClass}
-            />
+          <form onSubmit={onSearch} className="mt-10 flex max-w-2xl flex-col gap-3 border-t border-line pt-8 sm:flex-row sm:items-end">
+            <label className={`${fieldLabelClass} flex-1`}>
+              Buscar obra
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="ex.: monet, water lilies"
+                className={inputClass}
+              />
+            </label>
             <button type="submit" className={buttonClass}>
-              Buscar
+              Buscar ↳
             </button>
           </form>
 
-          {search.isFetching && <p className="mt-4 text-slate-500">Buscando...</p>}
-          {search.isError && <p className="mt-4 text-red-600 dark:text-red-400">{errorMessage(search.error)}</p>}
-          {search.isSuccess && search.data.items.length === 0 && <p className="mt-4 text-slate-500">Nada encontrado.</p>}
+          <div className="mt-10">
+            {search.isFetching && search.data && <p className="ui-label mb-4 text-muted">Buscando...</p>}
+            {search.isFetching && !search.data && (
+              <div role="status" aria-label="Buscando obras" className="divide-y divide-line border-y border-line">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-center gap-4 py-3">
+                    <SkeletonLine className="w-8" />
+                    <span className="size-16 animate-pulse bg-line" />
+                    <SkeletonLine className="h-4 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            )}
+            {search.isError && <p className={errorClass}>{errorMessage(search.error)}</p>}
+            {search.isSuccess && search.data.items.length === 0 && (
+              <p className="ui-label border border-line px-6 py-12 text-center text-muted">Nada encontrado</p>
+            )}
 
-          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-            {search.data?.items.map((item) => (
-              <li key={item.externalId} className="flex gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                {item.imageUrl && <img src={item.imageUrl} alt="" className="h-20 w-20 rounded object-cover" />}
-                <div className="flex-1 text-sm">
-                  <p className="font-medium">{item.title}</p>
-                  <p className="text-slate-500">{item.attributes.Artista}</p>
-                  <button type="button" onClick={() => setSelected(item)} className="mt-1 text-indigo-600 hover:underline dark:text-indigo-400">
-                    Selecionar
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+            {search.data && search.data.items.length > 0 && (
+              <ol className="divide-y divide-line border-y border-line">
+                {search.data.items.map((item, i) => (
+                  <li key={item.externalId} className="grid grid-cols-[auto_4rem_1fr] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[auto_4rem_1fr_auto]">
+                    <span className="ui-label text-muted">[{String(i + 1).padStart(2, '0')}]</span>
+                    <ArtImage src={item.imageUrl} title={item.title} width={200} className="size-16" />
+                    <div className="min-w-0">
+                      <p className="ui-display line-clamp-2 text-lg leading-tight">{item.title}</p>
+                      {item.attributes.Artista && <p className="mt-1 truncate text-sm text-muted">{item.attributes.Artista}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelected(item)}
+                      className={`${secondaryButtonClass} col-span-3 sm:col-span-1`}
+                    >
+                      Selecionar ↳
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
         </>
       )}
 
       {selected && (
-        <form onSubmit={onCreate} className="mt-4 max-w-md space-y-4">
-          <p className="text-sm">
-            Obra escolhida: <strong>{selected.title}</strong>{' '}
-            <button type="button" onClick={() => setSelected(null)} className="text-indigo-600 hover:underline dark:text-indigo-400">
-              trocar
+        <form onSubmit={onCreate} className="mt-10 grid gap-10 border-t border-line pt-8 md:grid-cols-[minmax(0,20rem)_minmax(0,28rem)]">
+          <div>
+            <p className="ui-label text-muted">Obra escolhida</p>
+            <Frame className="mt-3 p-3">
+              <ArtImage src={selected.imageUrl} title={selected.title} width={400} className="aspect-[4/5] w-full" />
+            </Frame>
+            <p className="ui-display mt-4 text-2xl leading-tight">{selected.title}</p>
+            <button type="button" onClick={() => setSelected(null)} className={`ui-label mt-2 min-h-11 ${textLinkClass}`}>
+              Trocar obra
             </button>
-          </p>
-          <label className="block text-sm">
-            Preço inicial (R$)
-            <input required value={startPrice} onChange={(e) => setStartPrice(e.target.value)} className={inputClass} />
-          </label>
-          <label className="block text-sm">
-            Incremento mínimo (R$)
-            <input required value={increment} onChange={(e) => setIncrement(e.target.value)} className={inputClass} />
-          </label>
-          <label className="block text-sm">
-            Início
-            <input type="datetime-local" required value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className={inputClass} />
-          </label>
-          <label className="block text-sm">
-            Fim
-            <input type="datetime-local" required value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className={inputClass} />
-          </label>
-          {(formError || create.isError) && (
-            <p className="text-sm text-red-600 dark:text-red-400">{formError || errorMessage(create.error)}</p>
-          )}
-          <div className="flex gap-2">
-            <button type="submit" disabled={create.isPending} className={buttonClass}>
-              {create.isPending ? 'Criando...' : 'Criar lote'}
-            </button>
-            <button type="button" onClick={() => setSelected(null)} className={secondaryButtonClass}>
-              Voltar
-            </button>
+          </div>
+
+          <div className="space-y-6">
+            <div className="grid gap-6 sm:grid-cols-2">
+              <label className={fieldLabelClass}>
+                Preço inicial (R$)
+                <input required inputMode="decimal" value={startPrice} onChange={(e) => setStartPrice(e.target.value)} className={inputClass} />
+              </label>
+              <label className={fieldLabelClass}>
+                Incremento mínimo (R$)
+                <input required inputMode="decimal" value={increment} onChange={(e) => setIncrement(e.target.value)} className={inputClass} />
+              </label>
+              <label className={fieldLabelClass}>
+                Início
+                <input type="datetime-local" required value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className={inputClass} />
+              </label>
+              <label className={fieldLabelClass}>
+                Fim
+                <input type="datetime-local" required value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className={inputClass} />
+              </label>
+            </div>
+            {(formError || create.isError) && (
+              <p role="alert" className={errorClass}>
+                {formError || errorMessage(create.error)}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-3">
+              <button type="submit" disabled={create.isPending} className={buttonClass}>
+                {create.isPending ? 'Criando...' : 'Criar lote ↳'}
+              </button>
+              <button type="button" onClick={() => setSelected(null)} className={secondaryButtonClass}>
+                Voltar
+              </button>
+            </div>
           </div>
         </form>
       )}

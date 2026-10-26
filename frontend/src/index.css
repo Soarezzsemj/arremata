@@ -1,5 +1,93 @@
 @import 'tailwindcss';
 
-/* O modo escuro é controlado pela classe "dark" no <html>, e não só pela preferência do sistema,
-   para o usuário poder escolher no botão. */
 @custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-paper: #fcfcfa;
+  --color-ink: #0a0a0a;
+  --color-muted: #6b6b67;
+  --color-gray: #8a8a8a;
+  --color-line: #d9d9d4;
+  --color-accent: #ff2a1a;
+  --color-night: #0a0a0a;
+  --color-snow: #f2f2ee;
+
+  --font-mono: 'Chivo Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: 'Inter Tight', ui-sans-serif, system-ui, sans-serif;
+  --font-hand: 'Reenie Beanie', 'Covered By Your Grace', cursive;
+}
+
+.dark {
+  --color-paper: #0a0a0a;
+  --color-ink: #f2f2ee;
+  --color-muted: #8a8a8a;
+  --color-line: #2a2a2a;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    background-color: var(--color-paper);
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-night);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+@utility ui-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@utility ui-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+}
+
+@utility ui-blurb {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-align: justify;
+  hyphens: auto;
+}
+
+@media (hover: hover) {
+  .lot-list:has(.lot-item:hover) .lot-item:not(:hover) {
+    opacity: 0.3;
+  }
+}
+.lot-list:has(.lot-item:focus-visible) .lot-item:not(:focus-visible) {
+  opacity: 0.3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

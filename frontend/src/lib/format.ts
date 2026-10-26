@@ -17,7 +17,6 @@ export function formatRemaining(ms: number): string {
   return `${minutes}min ${seconds}s`;
 }
 
-// Transforma o erro da API (ou qualquer outro) em um texto para mostrar na tela
 export function errorMessage(err: unknown): string {
   if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
     let text = err.message;

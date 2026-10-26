@@ -7,13 +7,26 @@ const labels: Record<Phase, string> = {
   cancelled: 'Cancelado',
 };
 
+
 const styles: Record<Phase, string> = {
-  live: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  scheduled: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-  ended: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
-  cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  live: '',
+  scheduled: '',
+  ended: 'opacity-75',
+  cancelled: 'line-through opacity-75',
 };
 
 export function PhaseBadge({ phase }: { phase: Phase }) {
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[phase]}`}>{labels[phase]}</span>;
+  return (
+    <span className={`ui-label inline-flex items-center gap-2 whitespace-nowrap ${styles[phase]}`}>
+      {phase === 'live' ? (
+        <span aria-hidden="true" className="relative flex size-2">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75" />
+          <span className="relative inline-flex size-2 rounded-full bg-accent" />
+        </span>
+      ) : (
+        <span aria-hidden="true" className={`size-2 border border-current ${phase === 'scheduled' ? '' : 'bg-current'}`} />
+      )}
+      {labels[phase]}
+    </span>
+  );
 }

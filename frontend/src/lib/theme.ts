@@ -1,5 +1,3 @@
-// O tema inicial é aplicado pelo script do index.html; aqui só alternamos e salvamos.
-
 export function isDarkTheme(): boolean {
   return document.documentElement.classList.contains('dark');
 }
@@ -9,6 +7,6 @@ export function setDarkTheme(dark: boolean) {
   try {
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   } catch {
-    // Se o navegador bloquear o localStorage, o tema só não fica salvo
+    // Se o navegador bloquear o localStorage, o tema nao fica salvo
   }
 }

@@ -18,7 +18,7 @@ type ArticArtwork = {
 
 const ARTIC_SEARCH_URL = 'https://api.artic.edu/api/v1/artworks/search';
 const IIIF_URL = 'https://www.artic.edu/iiif/2';
-const USER_AGENT = 'Arremata/1.0 (teste tecnico de leilao)';
+export const USER_AGENT = 'Arremata/1.0 (teste tecnico de leilao)';
 const TIMEOUT_MS = 5000;
 const CACHE_TTL_MS = 10 * 60 * 1000; 
 const CACHE_MAX_ENTRIES = 100;

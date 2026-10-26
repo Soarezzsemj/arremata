@@ -7,8 +7,9 @@ import { notFound } from './lib/errors';
 import { errorHandler } from './lib/http';
 import { auctioneerRouter } from './routes/auctioneer';
 import { lotsRouter } from './routes/lots';
+import { imagesRouter } from './routes/images';
 
-// O app fica separado do server.ts para os testes usarem o Express sem abrir uma porta.
+
 export const app = express();
 
 app.use(cors({ origin: config.corsOrigin }));
@@ -18,6 +19,7 @@ app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/auctioneer', auctioneerRouter);
 app.use('/api/lots', lotsRouter);
+app.use('/api/images', imagesRouter);
 
 app.use((_req, _res, next) => {
   next(notFound('Rota não encontrada'));

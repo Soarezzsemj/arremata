@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(() => getToken() !== null);
 
-  // Ao abrir o site, se existe token salvo, descobre quem é o usuário
+
   useEffect(() => {
     if (!getToken()) return;
     let cancelled = false;
