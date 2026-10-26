@@ -7,7 +7,7 @@ import { searchArtworks } from '../services/external';
 
 export const auctioneerRouter = Router();
 
-const searchQuery = z.object({ q: z.string().trim().min(2) });
+const searchQuery = z.object({ q: z.string().trim().min(2).max(100) });
 
 auctioneerRouter.get(
   '/search',

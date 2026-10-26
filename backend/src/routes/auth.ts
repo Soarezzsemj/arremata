@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, validate } from '../lib/http';
@@ -30,23 +31,25 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const { name, email, password, role } = req.body;
 
-    const exists = await prisma.user.findUnique({ where: { email } });
-    if (exists) throw conflict('EMAIL_TAKEN', 'E-mail já cadastrado.');
+    
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) throw conflict('EMAIL_TAKEN', 'E-mail já cadastrado.');
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash: await hashPassword(password),
-        role,
-        wallet: { create: {} },
-      },
-    });
+    const passwordHash = await hashPassword(password);
 
-    res.status(201).json({
-      token: signToken({ userId: user.id, role: user.role }),
-      user: toUser(user),
-    });
+    try {
+      const user = await prisma.user.create({
+        data: { name, email, passwordHash, role, wallet: { create: {} } },
+      });
+      const token = signToken({ userId: user.id, role: user.role });
+      res.status(201).json({ token, user: toUser(user) });
+    } catch (err) {
+      
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw conflict('EMAIL_TAKEN', 'E-mail já cadastrado.');
+      }
+      throw err;
+    }
   }),
 );
 

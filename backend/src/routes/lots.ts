@@ -9,15 +9,24 @@ import { phaseOf, toSummary, toView } from '../lib/lots';
 
 export const lotsRouter = Router();
 
+//p nao bugar o postgres
+const MAX_CENTS = 1_000_000_000;
+
+
+const ARTIC_IMAGE_PREFIX = 'https://www.artic.edu/iiif/';
+
+
+const LIST_LIMIT = 50;
+
 const createLotSchema = z
   .object({
-    externalSource: z.string().min(1),
-    externalId: z.string().min(1),
-    title: z.string().trim().min(1),
-    imageUrl: z.string().url().nullable().optional(),
-    attributes: z.record(z.string(), z.string()),
-    startPriceCents: z.number().int().positive(),
-    minIncrementCents: z.number().int().min(1),
+    externalSource: z.literal('artic'),
+    externalId: z.string().trim().min(1).max(40),
+    title: z.string().trim().min(1).max(300),
+    imageUrl: z.string().max(500).startsWith(ARTIC_IMAGE_PREFIX).nullable().optional(),
+    attributes: z.record(z.string().max(100), z.string().max(300)),
+    startPriceCents: z.number().int().positive().max(MAX_CENTS),
+    minIncrementCents: z.number().int().min(1).max(MAX_CENTS),
     startsAt: z.coerce.date(),
     endsAt: z.coerce.date(),
   })
@@ -51,19 +60,31 @@ function whereForPhase(
     case 'ended':
       return { OR: [{ status: 'SETTLED' }, { status: 'ACTIVE', endsAt: { lte: now } }] };
     default:
-      return { status: { not: 'CANCELLED' } }; 
+      return { status: { not: 'CANCELLED' } };
   }
 }
 
-
+// Criar lote (só leiloeiro)
 lotsRouter.post(
   '/',
   requireAuth,
   requireRole('AUCTIONEER'),
   validate(createLotSchema),
   asyncHandler(async (req, res) => {
+    const body = req.body;
     const lot = await prisma.lot.create({
-      data: { ...req.body, auctioneerId: req.user!.userId },
+      data: {
+        auctioneerId: req.user!.userId,
+        externalSource: body.externalSource,
+        externalId: body.externalId,
+        title: body.title,
+        imageUrl: body.imageUrl,
+        attributes: body.attributes,
+        startPriceCents: body.startPriceCents,
+        minIncrementCents: body.minIncrementCents,
+        startsAt: body.startsAt,
+        endsAt: body.endsAt,
+      },
     });
     res.status(201).json(toSummary(lot));
   }),
@@ -75,11 +96,13 @@ lotsRouter.get(
   asyncHandler(async (req, res) => {
     const parsed = listQuerySchema.safeParse(req.query);
     if (!parsed.success) throw badRequest('Fase inválida. Use live, scheduled ou ended.');
+    const phase = parsed.data.phase;
 
     const now = new Date();
     const lots = await prisma.lot.findMany({
-      where: whereForPhase(parsed.data.phase, now),
-      orderBy: { endsAt: 'asc' },
+      where: whereForPhase(phase, now),
+      orderBy: { endsAt: phase === 'ended' ? 'desc' : 'asc' },
+      take: LIST_LIMIT,
     });
     res.json({ lots: lots.map((l) => toSummary(l, now)), serverTime: now.toISOString() });
   }),
@@ -99,9 +122,14 @@ lotsRouter.get(
       orderBy: { seq: 'desc' },
       take: 100,
     });
+
     const now = new Date();
     const viewerId = req.user?.userId ?? null;
-    res.json({...toView(lot, bids, viewerId, now),isOwner: viewerId !== null && viewerId === lot.auctioneerId,});
+
+    res.json({
+      ...toView(lot, bids, viewerId, now),
+      isOwner: viewerId !== null && viewerId === lot.auctioneerId,
+    });
   }),
 );
 
@@ -126,7 +154,6 @@ lotsRouter.post(
       throw conflict('LOT_HAS_BIDS', 'Não é possível cancelar um lote que já recebeu lances.');
     }
 
-   
     const result = await prisma.lot.updateMany({
       where: { id: lot.id, status: 'ACTIVE', bidCount: 0 },
       data: { status: 'CANCELLED' },

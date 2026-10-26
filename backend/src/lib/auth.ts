@@ -1,8 +1,9 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import type { Role } from '@prisma/client';
 import { config } from '../config';
 
-export type TokenPayload = { userId: string; role: string };
+export type TokenPayload = { userId: string; role: Role };
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);

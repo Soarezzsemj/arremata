@@ -31,6 +31,7 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
     try {
       req.user = verifyToken(header.slice(7));
     } catch {
+      //token invalido ou expirado
     }
   }
   next();
