@@ -16,7 +16,7 @@ app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
 
 app.use((_req, _res, next) => {
-  next(notFound('Rota não encontrada.'));
+  next(notFound('Rota não encontrada'));
 });
 
 app.use(errorHandler);
