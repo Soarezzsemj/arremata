@@ -24,3 +24,14 @@ export function requireRole(role: Role) {
     next();
   };
 }
+
+export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) {
+    try {
+      req.user = verifyToken(header.slice(7));
+    } catch {
+    }
+  }
+  next();
+}
