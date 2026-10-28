@@ -6,6 +6,7 @@ import { errorMessage } from '../lib/format';
 import type { ExternalItem, LotSummary } from '../lib/types';
 import { ArtImage } from '../components/ArtImage';
 import { Frame } from '../components/Frame';
+import { MoneyInput } from '../components/MoneyInput';
 import { SkeletonLine } from '../components/Skeleton';
 import { Square } from '../components/Square';
 import {
@@ -18,13 +19,12 @@ import {
   textLinkClass,
 } from '../lib/ui';
 
+// Mesmo teto do back-end para lotes (R$ 10.000.000,00)
+const MAX_LOT_CENTS = 1_000_000_000;
+
 function toLocalInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function toCents(value: string): number {
-  return Math.round(parseFloat(value.replace(',', '.')) * 100);
 }
 
 export function NewLotPage() {
@@ -35,11 +35,11 @@ export function NewLotPage() {
   const [term, setTerm] = useState('');
   const [selected, setSelected] = useState<ExternalItem | null>(null);
 
-  const [startPrice, setStartPrice] = useState('100');
-  const [increment, setIncrement] = useState('5');
+  // Valores em centavos: R$ 100,00 e R$ 5,00
+  const [startPrice, setStartPrice] = useState(10_000);
+  const [increment, setIncrement] = useState(500);
   const [startsAt, setStartsAt] = useState(() => toLocalInput(new Date()));
   const [endsAt, setEndsAt] = useState(() => toLocalInput(new Date(Date.now() + 24 * 3600 * 1000)));
-  const [formError, setFormError] = useState('');
 
   const search = useQuery({
     queryKey: ['search', term],
@@ -56,8 +56,8 @@ export function NewLotPage() {
         title: item.title,
         imageUrl: item.imageUrl,
         attributes: item.attributes,
-        startPriceCents: toCents(startPrice),
-        minIncrementCents: toCents(increment),
+        startPriceCents: startPrice,
+        minIncrementCents: increment,
         startsAt: new Date(startsAt).toISOString(),
         endsAt: new Date(endsAt).toISOString(),
       }),
@@ -74,12 +74,7 @@ export function NewLotPage() {
 
   function onCreate(e: FormEvent) {
     e.preventDefault();
-    setFormError('');
     if (!selected) return;
-    if (Number.isNaN(toCents(startPrice)) || Number.isNaN(toCents(increment))) {
-      setFormError('Preencha os valores em reais (ex.: 100 ou 99,90).');
-      return;
-    }
     create.mutate(selected);
   }
 
@@ -166,14 +161,12 @@ export function NewLotPage() {
 
           <div className="space-y-6">
             <div className="grid gap-6 sm:grid-cols-2">
-              <label className={fieldLabelClass}>
-                Preço inicial (R$)
-                <input required inputMode="decimal" value={startPrice} onChange={(e) => setStartPrice(e.target.value)} className={inputClass} />
-              </label>
-              <label className={fieldLabelClass}>
-                Incremento mínimo (R$)
-                <input required inputMode="decimal" value={increment} onChange={(e) => setIncrement(e.target.value)} className={inputClass} />
-              </label>
+              <div>
+                <MoneyInput id="preco-inicial" label="Preço inicial" value={startPrice} onChange={setStartPrice} maxCents={MAX_LOT_CENTS} />
+              </div>
+              <div>
+                <MoneyInput id="incremento-minimo" label="Incremento mínimo" value={increment} onChange={setIncrement} maxCents={MAX_LOT_CENTS} />
+              </div>
               <label className={fieldLabelClass}>
                 Início
                 <input type="datetime-local" required value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className={inputClass} />
@@ -183,9 +176,9 @@ export function NewLotPage() {
                 <input type="datetime-local" required value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className={inputClass} />
               </label>
             </div>
-            {(formError || create.isError) && (
+            {create.isError && (
               <p role="alert" className={errorClass}>
-                {formError || errorMessage(create.error)}
+                {errorMessage(create.error)}
               </p>
             )}
             <div className="flex flex-wrap gap-3">

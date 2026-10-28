@@ -3,7 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, useLocation, useSearchParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { apiGet } from '../lib/api';
+import { formatMoney } from '../lib/format';
 import type { LotSummary } from '../lib/types';
+import { walletQuery } from '../lib/wallet';
 import { Brand } from './Brand';
 import { Square } from './Square';
 import { ThemeToggle } from './ThemeToggle';
@@ -31,6 +33,14 @@ export function Header() {
     refetchInterval: 10_000,
   });
   const count = lots.data?.lots.length;
+
+  // Só o licitante vê o saldo no cabeçalho; sem refetch periódico, a página da carteira atualiza o cache
+  const wallet = useQuery({
+    ...walletQuery,
+    enabled: user?.role === 'BIDDER',
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     setOpen(false);
@@ -66,6 +76,16 @@ export function Header() {
 
   if (user) {
     items.push(
+      <NavLink key="wallet" to="/carteira" className={navClass}>
+        <Square />
+        Carteira
+        {user.role === 'BIDDER' && wallet.data && (
+          <span className="text-muted tabular-nums">
+            <span className="sr-only">, disponível </span>
+            {formatMoney(wallet.data.availableCents)}
+          </span>
+        )}
+      </NavLink>,
       <span key="me" className={`${itemClass} text-muted`}>
         <Square />
         <span className="max-w-[16ch] truncate">{user.name}</span>

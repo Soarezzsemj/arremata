@@ -33,3 +33,19 @@ export type ExternalItem = {
   imageUrl: string | null;
   attributes: Record<string, string>;
 };
+export type LedgerType = 'DEPOSIT' | 'HOLD' | 'RELEASE' | 'SETTLE_DEBIT' | 'SETTLE_CREDIT';
+
+export type LedgerEntry = {
+  id: string;
+  type: LedgerType;
+  amountCents: number;
+  lotId: string | null;
+  createdAt: string;
+};
+
+export type Wallet = {
+  totalCents: number;
+  committedCents: number;
+  availableCents: number;
+  entries: LedgerEntry[];
+};

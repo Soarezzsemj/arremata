@@ -8,6 +8,7 @@ import { errorHandler } from './lib/http';
 import { auctioneerRouter } from './routes/auctioneer';
 import { lotsRouter } from './routes/lots';
 import { imagesRouter } from './routes/images';
+import { meRouter } from './routes/me';
 
 
 export const app = express();
@@ -20,6 +21,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/auctioneer', auctioneerRouter);
 app.use('/api/lots', lotsRouter);
 app.use('/api/images', imagesRouter);
+app.use('/api/me', meRouter);
 
 app.use((_req, _res, next) => {
   next(notFound('Rota não encontrada'));

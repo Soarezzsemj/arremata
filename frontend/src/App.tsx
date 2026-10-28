@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router';
 import { CropMarks } from './components/CropMarks';
 import { Footer } from './components/Footer';
 import { Header } from './components/Header';
+import { RequireAuth } from './components/RequireAuth';
 import { RequireRole } from './components/RequireRole';
 import { containerClass } from './lib/ui';
 import { HomePage } from './pages/HomePage';
@@ -9,6 +10,7 @@ import { LoginPage } from './pages/LoginPage';
 import { LotPage } from './pages/LotPage';
 import { NewLotPage } from './pages/NewLotPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { WalletPage } from './pages/WalletPage';
 
 export function App() {
   return (
@@ -33,6 +35,14 @@ export function App() {
               <RequireRole role="AUCTIONEER">
                 <NewLotPage />
               </RequireRole>
+            }
+          />
+          <Route
+            path="/carteira"
+            element={
+              <RequireAuth>
+                <WalletPage />
+              </RequireAuth>
             }
           />
           <Route path="*" element={<p className={`${containerClass} ui-label py-16`}>Página não encontrada.</p>} />
