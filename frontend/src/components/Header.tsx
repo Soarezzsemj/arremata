@@ -34,7 +34,6 @@ export function Header() {
   });
   const count = lots.data?.lots.length;
 
-  // Só o licitante vê o saldo no cabeçalho; sem refetch periódico, a página da carteira atualiza o cache
   const wallet = useQuery({
     ...walletQuery,
     enabled: user?.role === 'BIDDER',
@@ -76,6 +75,10 @@ export function Header() {
 
   if (user) {
     items.push(
+      <NavLink key="mine" to="/meus-leiloes" className={navClass}>
+        <Square />
+        Meus leilões
+      </NavLink>,
       <NavLink key="wallet" to="/carteira" className={navClass}>
         <Square />
         Carteira
@@ -118,7 +121,7 @@ export function Header() {
           <Brand className="text-5xl md:text-6xl" />
         </Link>
 
-        {/* Desktop menu: quebra em linhas em vez de criar colunas que passam da borda */}
+        {}
         <nav
           aria-label="Principal"
           className="hidden min-w-0 flex-1 flex-wrap justify-end gap-x-8 lg:flex xl:gap-x-12"

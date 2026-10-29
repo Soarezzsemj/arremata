@@ -5,9 +5,11 @@ import { Header } from './components/Header';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireRole } from './components/RequireRole';
 import { containerClass } from './lib/ui';
+import { AuditPage } from './pages/AuditPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { LotPage } from './pages/LotPage';
+import { MyAuctionsPage } from './pages/MyAuctionsPage';
 import { NewLotPage } from './pages/NewLotPage';
 import { ReceiptPage } from './pages/ReceiptPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -29,6 +31,7 @@ export function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/lots/:id" element={<LotPage />} />
           <Route path="/comprovante/:token" element={<ReceiptPage />} />
+          <Route path="/auditoria/:lotId" element={<AuditPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
@@ -44,6 +47,14 @@ export function App() {
             element={
               <RequireAuth>
                 <WalletPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/meus-leiloes"
+            element={
+              <RequireAuth>
+                <MyAuctionsPage />
               </RequireAuth>
             }
           />

@@ -1,13 +1,16 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { errorMessage } from '../lib/format';
+import { safeNext, withNext } from '../lib/next';
 import { Square } from '../components/Square';
 import { buttonClass, containerClass, errorClass, fieldLabelClass, inputClass, textLinkClass } from '../lib/ui';
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = safeNext(params.get('next'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -19,7 +22,7 @@ export function LoginPage() {
     setBusy(true);
     try {
       await login(email, password);
-      navigate('/');
+      navigate(next ?? '/', { replace: next !== null });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -57,7 +60,7 @@ export function LoginPage() {
         </form>
         <p className="mt-8 border-t border-line pt-6 text-sm">
           Não tem conta?{' '}
-          <Link to="/register" className={textLinkClass}>
+          <Link to={withNext('/register', next)} className={textLinkClass}>
             Cadastre-se
           </Link>
         </p>

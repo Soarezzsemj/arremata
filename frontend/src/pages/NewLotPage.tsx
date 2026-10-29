@@ -34,8 +34,6 @@ export function NewLotPage() {
   const [q, setQ] = useState('');
   const [term, setTerm] = useState('');
   const [selected, setSelected] = useState<ExternalItem | null>(null);
-
-  // Valores em centavos: R$ 100,00 e R$ 5,00
   const [startPrice, setStartPrice] = useState(10_000);
   const [increment, setIncrement] = useState(500);
   const [startsAt, setStartsAt] = useState(() => toLocalInput(new Date()));
@@ -63,6 +61,7 @@ export function NewLotPage() {
       }),
     onSuccess: (lot) => {
       queryClient.invalidateQueries({ queryKey: ['lots'] });
+      queryClient.invalidateQueries({ queryKey: ['auctioneer-lots'] });
       navigate(`/lots/${lot.id}`);
     },
   });

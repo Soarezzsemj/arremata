@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { ArtImage } from '../components/ArtImage';
+import { CopyButton } from '../components/CopyButton';
 import { Frame } from '../components/Frame';
 import { SkeletonLine } from '../components/Skeleton';
 import { Square } from '../components/Square';
 import { apiGet, type ApiError } from '../lib/api';
 import { errorMessage, formatDateTime, formatMoney } from '../lib/format';
 import type { Receipt } from '../lib/types';
-import { containerClass, errorClass, secondaryButtonClass } from '../lib/ui';
+import { containerClass, errorClass, textLinkClass } from '../lib/ui';
 
 const backLinkClass = 'ui-label inline-flex min-h-11 items-center gap-2 hover:underline hover:decoration-accent hover:underline-offset-4';
 
@@ -127,7 +127,11 @@ export function ReceiptPage() {
             <p className="text-sm text-muted">
               O hash final identifica a cadeia de lances deste lote. Qualquer alteração nos lances muda esse valor.
             </p>
-            {}
+            <p className="text-sm">
+              <Link to={`/auditoria/${data.lotId}`} className={textLinkClass}>
+                Ver auditoria dos lances
+              </Link>
+            </p>
             <div className="flex flex-wrap gap-2">
               <CopyButton label="Copiar hash" text={() => data.finalHash} />
               <CopyButton label="Copiar link" text={() => window.location.href} />
@@ -136,35 +140,5 @@ export function ReceiptPage() {
         </div>
       </div>
     </section>
-  );
-}
-
-function CopyButton({ label, text }: { label: string; text: () => string }) {
-  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
-
-  useEffect(() => {
-    if (state === 'idle') return;
-    const timer = setTimeout(() => setState('idle'), 2_000);
-    return () => clearTimeout(timer);
-  }, [state]);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text());
-      setState('copied');
-    } catch {
-      setState('failed');
-    }
-  }
-
-  return (
-    <span className="inline-flex items-center gap-3">
-      <button type="button" onClick={copy} className={secondaryButtonClass}>
-        {label}
-      </button>
-      <span aria-live="polite" className="ui-label min-w-[7ch] text-muted">
-        {state === 'copied' ? 'Copiado' : state === 'failed' ? 'Não copiou' : ''}
-      </span>
-    </span>
   );
 }

@@ -14,14 +14,12 @@ type Props = {
   className?: string;
 };
 
-// Só dígitos viram centavos: "R$ 1.234,56" -> 123456
 function digitsToCents(text: string, maxCents: number): number {
   const digits = text.replace(/\D/g, '');
   const cents = digits ? parseInt(digits, 10) : 0;
   return Math.min(cents, maxCents);
 }
 
-// Máscara de banco: os dígitos entram pela direita, então o cursor fica sempre no fim
 export function MoneyInput({
   value,
   onChange,
@@ -41,7 +39,6 @@ export function MoneyInput({
     if (el && document.activeElement === el) el.setSelectionRange(el.value.length, el.value.length);
   }
 
-  // Depois de cada mudança, o React reescreve o texto; devolve o cursor ao fim
   useLayoutEffect(caretToEnd, [text]);
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
@@ -57,12 +54,10 @@ export function MoneyInput({
       onChange(allSelected ? 0 : Math.floor(value / 10));
       return;
     }
-    // Bloqueia caracteres imprimíveis que não sejam dígitos; Tab, setas, Enter etc. passam.
-    // Teclados virtuais do Android mandam "Unidentified": o handleChange filtra depois.
+
     if (e.key.length === 1 && !/\d/.test(e.key)) e.preventDefault();
   }
 
-  // Colar substitui o valor inteiro em vez de juntar com os dígitos atuais
   function handlePaste(e: ClipboardEvent<HTMLInputElement>) {
     e.preventDefault();
     onChange(digitsToCents(e.clipboardData.getData('text'), maxCents));

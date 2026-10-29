@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { ArtImage } from '../components/ArtImage';
 import { BidPanel, isLeading } from '../components/BidPanel';
@@ -11,8 +11,10 @@ import { SkeletonLine } from '../components/Skeleton';
 import { Square } from '../components/Square';
 import { apiGet, apiPost } from '../lib/api';
 import { errorMessage, formatDateTime, formatMoney } from '../lib/format';
+import { currentPath, withNext } from '../lib/next';
 import type { LotSummary, LotView } from '../lib/types';
 import { containerClass, errorClass, secondaryButtonClass } from '../lib/ui';
+import { useLotEvents } from '../lib/useLotEvents';
 import { walletQuery } from '../lib/wallet';
 
 const backLinkClass = 'ui-label inline-flex min-h-11 items-center gap-2 hover:underline hover:decoration-accent hover:underline-offset-4';
@@ -20,9 +22,11 @@ const backLinkClass = 'ui-label inline-flex min-h-11 items-center gap-2 hover:un
 const primaryLinkClass =
   'ui-label inline-flex min-h-14 w-full items-center justify-center gap-2 bg-accent px-6 text-night transition-opacity duration-150 hover:opacity-90';
  
-function pollInterval(lot: LotView): number | false {
-  if (lot.phase === 'live') return 3_000;
-  if (lot.phase === 'scheduled') return 5_000;
+const STREAM_POLL_MS = 15_000;
+
+function pollInterval(lot: LotView, streaming: boolean): number | false {
+  if (lot.phase === 'live') return streaming ? STREAM_POLL_MS : 3_000;
+  if (lot.phase === 'scheduled') return streaming ? STREAM_POLL_MS : 5_000;
   if (lot.phase === 'ended' && lot.result === null) return 3_000;
   return false;
 }
@@ -36,12 +40,16 @@ export function LotPage() {
   const { id } = useParams();
   const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
 
   const lotKey = ['lot', id, user?.id ?? null] as const;
+  const cachedPhase = queryClient.getQueryData<LotView>(lotKey)?.phase;
+  const streaming = useLotEvents(id, cachedPhase !== 'cancelled');
+
   const lot = useQuery({
     queryKey: lotKey,
     queryFn: () => apiGet<LotView>(`/lots/${id}`),
-    refetchInterval: (query) => (query.state.data ? pollInterval(query.state.data) : false),
+    refetchInterval: (query) => (query.state.data ? pollInterval(query.state.data, streaming) : false),
     refetchIntervalInBackground: false,
   });
 
@@ -64,6 +72,7 @@ export function LotPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lot'] });
       queryClient.invalidateQueries({ queryKey: ['lots'] });
+      queryClient.invalidateQueries({ queryKey: ['auctioneer-lots'] });
     },
   });
 
@@ -164,7 +173,7 @@ export function LotPage() {
             {formatDateTime(data.startsAt)} até {formatDateTime(data.endsAt)}
           </p>
 
-          {/* Atributos como legenda de museu */}
+          {}
           {attributes.length > 0 && (
             <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-6 gap-y-2 py-6 text-sm">
               {attributes.map(([key, value]) => (
@@ -193,13 +202,20 @@ export function LotPage() {
               </div>
             ) : (
               <div className="py-6">
-                <Link to="/login" className={primaryLinkClass}>
+                <Link to={withNext('/login', currentPath(location))} className={primaryLinkClass}>
                   Entrar para dar lance ↳
                 </Link>
               </div>
             ))}
 
           <BidList bids={data.bids} viewer={data.viewer} total={data.bidCount} />
+
+          <p className="py-4">
+            <Link to={`/auditoria/${data.id}`} className={backLinkClass}>
+              <Square />
+              Ver auditoria ↳
+            </Link>
+          </p>
 
           {canCancel && (
             <div className="space-y-3 py-6">

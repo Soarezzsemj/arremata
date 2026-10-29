@@ -10,6 +10,7 @@ import { lotsRouter } from './routes/lots';
 import { imagesRouter } from './routes/images';
 import { meRouter } from './routes/me';
 import { receiptsRouter } from './routes/receipts';
+import { auditRouter } from './routes/audit';
 
 
 export const app = express();
@@ -18,6 +19,7 @@ app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
 
 app.use('/api', healthRouter);
+app.use('/api/audit', auditRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/auctioneer', auctioneerRouter);
 app.use('/api/lots', lotsRouter);

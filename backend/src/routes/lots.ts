@@ -8,6 +8,7 @@ import { AppError, badRequest, conflict, forbidden } from '../lib/errors';
 import { phaseOf, toSummary, toView } from '../lib/lots';
 import { placeBid } from '../services/bids';
 import { settleLot } from '../services/settlement';
+import { emitLotEvent, onLotEvent } from '../lib/events';
 
 export const lotsRouter = Router();
 
@@ -191,8 +192,37 @@ lotsRouter.post(
   requireRole('BIDDER'),
   validate(bidSchema),
   asyncHandler(async (req, res) => {
-  const id = String(req.params.id);
-  const result = await placeBid(id, req.user!.userId, req.body.amountCents);
-  res.status(201).json(result);
-}),
+    const id = String(req.params.id);
+    const result = await placeBid(id, req.user!.userId, req.body.amountCents);
+    emitLotEvent(id, 'bid');
+    res.status(201).json(result);
+  }),
+);
+
+lotsRouter.get(
+  '/:id/events',
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id);
+    const exists = await prisma.lot.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw lotNotFound();
+
+    res.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.flushHeaders();
+    res.write('retry: 3000\n\n');
+
+    const off = onLotEvent(id, (type) => {
+      res.write(`event: ${type}\ndata: ${JSON.stringify({ lotId: id })}\n\n`);
+    });
+    const keepAlive = setInterval(() => res.write(': ping\n\n'), 25_000);
+
+    req.on('close', () => {
+      clearInterval(keepAlive);
+      off();
+    });
+  }),
 );

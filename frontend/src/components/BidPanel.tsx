@@ -104,6 +104,7 @@ export function BidPanel({ lot, queryKey }: { lot: LotView; queryKey: readonly u
       );
       queryClient.invalidateQueries({ queryKey: ['lot', lot.id] });
       queryClient.invalidateQueries({ queryKey: walletQuery.queryKey });
+      queryClient.invalidateQueries({ queryKey: ['my-bids'] });
       setTyped(null);
       setDone({ amountCents: res.bid.amountCents, extended: res.extended });
     },

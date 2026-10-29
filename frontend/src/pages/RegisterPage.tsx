@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { errorMessage } from '../lib/format';
+import { safeNext, withNext } from '../lib/next';
 import type { Role } from '../lib/types';
 import { Square } from '../components/Square';
 import { buttonClass, containerClass, errorClass, fieldLabelClass, inputClass, textLinkClass } from '../lib/ui';
@@ -9,6 +10,8 @@ import { buttonClass, containerClass, errorClass, fieldLabelClass, inputClass, t
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = safeNext(params.get('next'));
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,7 +25,7 @@ export function RegisterPage() {
     setBusy(true);
     try {
       await register({ name, email, password, role });
-      navigate('/');
+      navigate(next ?? '/', { replace: next !== null });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -72,7 +75,7 @@ export function RegisterPage() {
         </form>
         <p className="mt-8 border-t border-line pt-6 text-sm">
           Já tem conta?{' '}
-          <Link to="/login" className={textLinkClass}>
+          <Link to={withNext('/login', next)} className={textLinkClass}>
             Entrar
           </Link>
         </p>

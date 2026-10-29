@@ -76,3 +76,53 @@ export type Wallet = {
   availableCents: number;
   entries: LedgerEntry[];
 };
+
+export type BidStanding = 'leading' | 'outbid' | 'won' | 'lost';
+
+export type MyBidLot = LotSummary & {
+  myLastBidCents: number | null;
+  standing: BidStanding;
+  receiptToken: string | null;
+};
+
+export type MyBidsResponse = { lots: MyBidLot[]; serverTime: string };
+
+export type AuctioneerLotResult =
+  | { outcome: 'sold'; amountCents: number; winner: string; receiptToken: string }
+  | { outcome: 'unsold' };
+
+export type AuctioneerLot = LotSummary & { result: AuctioneerLotResult | null };
+
+export type AuctioneerLotsResponse = { lots: AuctioneerLot[]; serverTime: string };
+
+export type AuditIssueCode =
+  | 'SEQ_GAP'
+  | 'BROKEN_LINK'
+  | 'HASH_MISMATCH'
+  | 'COUNT_MISMATCH'
+  | 'HEAD_MISMATCH'
+  | 'STATE_MISMATCH'
+  | 'RECEIPT_MISMATCH';
+
+export type AuditIssue = { code: AuditIssueCode | (string & {}); seq: number | null; message: string };
+
+export type AuditBid = {
+  seq: number;
+  bidder: string;
+  amountCents: number;
+  at: string;
+  prevHash: string;
+  hash: string;
+};
+
+export type LotAudit = {
+  lotId: string;
+  title: string;
+  phase: Phase;
+  bidCount: number;
+  genesisHash: string;
+  headHash: string | null;
+  finalHash: string | null;
+  verification: { ok: boolean; issues: AuditIssue[] };
+  bids: AuditBid[];
+};

@@ -1,11 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db';
+import { emitLotEvent } from '../lib/events';
 import { settleCredit, settleDebit } from './wallet';
 
-
 export async function settleLot(lotId: string) {
-  return prisma.$transaction(async (tx) => {
+  let changed = false;
+
+  const receipt = await prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM "Lot" WHERE id = ${lotId} FOR UPDATE
     `;
@@ -15,9 +17,9 @@ export async function settleLot(lotId: string) {
     const now = new Date();
     if (lot.status !== 'ACTIVE' || now < lot.endsAt) return null;
 
-    
     if (lot.bidCount === 0 || !lot.leaderId || lot.currentPriceCents == null) {
       await tx.lot.update({ where: { id: lotId }, data: { status: 'SETTLED' } });
+      changed = true;
       return null;
     }
     if (!lot.headHash) {
@@ -26,7 +28,6 @@ export async function settleLot(lotId: string) {
 
     const amountCents = lot.currentPriceCents;
 
-    
     await tx.$queryRaw`
       SELECT id FROM "Wallet"
       WHERE "userId" IN (${Prisma.join([lot.leaderId, lot.auctioneerId])})
@@ -37,7 +38,7 @@ export async function settleLot(lotId: string) {
     await settleDebit(tx, lot.leaderId, lotId, amountCents);
     await settleCredit(tx, lot.auctioneerId, lotId, amountCents);
 
-    const receipt = await tx.receipt.create({
+    const created = await tx.receipt.create({
       data: {
         lotId,
         token: randomBytes(24).toString('base64url'),
@@ -49,10 +50,13 @@ export async function settleLot(lotId: string) {
     });
 
     await tx.lot.update({ where: { id: lotId }, data: { status: 'SETTLED' } });
-    return receipt;
+    changed = true;
+    return created;
   });
-}
 
+  if (changed) emitLotEvent(lotId, 'settled');
+  return receipt;
+}
 
 export async function settleDueLots(limit = 50) {
   const due = await prisma.lot.findMany({
