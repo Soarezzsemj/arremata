@@ -9,6 +9,7 @@ import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { LotPage } from './pages/LotPage';
 import { NewLotPage } from './pages/NewLotPage';
+import { ReceiptPage } from './pages/ReceiptPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { WalletPage } from './pages/WalletPage';
 
@@ -27,6 +28,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/lots/:id" element={<LotPage />} />
+          <Route path="/comprovante/:token" element={<ReceiptPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route

@@ -29,11 +29,24 @@ export type LotSummary = {
   bidCount: number;
 };
 
+export type LotResult =
+  | {
+      outcome: 'sold';
+      amountCents: number;
+      winner: string; // pseudônimo
+      youWon: boolean;
+      receiptToken: string | null; // só o vencedor e o leiloeiro recebem
+    }
+  | { outcome: 'unsold' };
+
+export type ReceiptRow = { token: string; winnerId: string; amountCents: number };
+
 export type LotView = LotSummary & {
   leader: string | null;
   viewer: string | null;
   bids: { seq: number; bidder: string; amountCents: number; at: string }[];
   serverTime: string;
+  result: LotResult | null;
 };
 
 
@@ -64,11 +77,31 @@ export function toSummary(lot: Lot, now: Date = new Date()): LotSummary {
 
 type BidRow = { seq: number; bidderId: string; amountCents: number; createdAt: Date };
 
+function resultOf(
+  lot: Lot,
+  viewerId: string | null,
+  receipt: ReceiptRow | null,
+): LotResult | null {
+  if (lot.status !== 'SETTLED') return null;
+  if (!receipt) return { outcome: 'unsold' };
+
+  const isWinner = viewerId !== null && viewerId === receipt.winnerId;
+  const isOwner = viewerId !== null && viewerId === lot.auctioneerId;
+  return {
+    outcome: 'sold',
+    amountCents: receipt.amountCents,
+    winner: pseudonym(lot.id, receipt.winnerId),
+    youWon: isWinner,
+    receiptToken: isWinner || isOwner ? receipt.token : null,
+  };
+}
+
 export function toView(
   lot: Lot,
   bids: BidRow[],
   viewerId: string | null,
   now: Date = new Date(),
+  receipt: ReceiptRow | null = null,
 ): LotView {
   return {
     ...toSummary(lot, now),
@@ -81,5 +114,6 @@ export function toView(
       at: b.createdAt.toISOString(),
     })),
     serverTime: now.toISOString(),
+    result: resultOf(lot, viewerId, receipt),
   };
 }

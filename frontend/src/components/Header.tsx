@@ -118,10 +118,10 @@ export function Header() {
           <Brand className="text-5xl md:text-6xl" />
         </Link>
 
-        {/* Desktop menu */}
+        {/* Desktop menu: quebra em linhas em vez de criar colunas que passam da borda */}
         <nav
           aria-label="Principal"
-          className="hidden grid-flow-col grid-rows-2 gap-x-8 md:grid lg:gap-x-14 xl:gap-x-20"
+          className="hidden min-w-0 flex-1 flex-wrap justify-end gap-x-8 lg:flex xl:gap-x-12"
         >
           {items}
         </nav>
@@ -131,7 +131,7 @@ export function Header() {
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-controls="menu-celular"
-          className={`${itemClass} px-1 md:hidden`}
+          className={`${itemClass} px-1 lg:hidden`}
         >
           <Square />
           {open ? 'Fechar' : 'Menu'}
@@ -142,7 +142,7 @@ export function Header() {
         <nav
           id="menu-celular"
           aria-label="Principal"
-          className="mx-6 mt-3 grid grid-cols-1 border-y border-line py-2 min-[420px]:grid-cols-2 md:hidden"
+          className="mx-6 mt-3 grid grid-cols-1 border-y border-line py-2 min-[420px]:grid-cols-2 md:mx-10 md:grid-cols-3 lg:hidden"
         >
           {items}
         </nav>

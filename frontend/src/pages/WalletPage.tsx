@@ -19,20 +19,19 @@ const ledgerLabels: Record<LedgerType, string> = {
   DEPOSIT: 'Depósito',
   HOLD: 'Reserva em lance',
   RELEASE: 'Liberação de reserva',
-  SETTLE_DEBIT: 'Débito do arremate',
-  SETTLE_CREDIT: 'Crédito do arremate',
+  SETTLE_DEBIT: 'Compra arrematada',
+  SETTLE_CREDIT: 'Venda recebida',
 };
 
 const credits: LedgerType[] = ['DEPOSIT', 'RELEASE', 'SETTLE_CREDIT'];
 
-// Em centavos: R$ 100, R$ 500 e R$ 1.000
+// Em centavos 100, 500 e 1.000
 const quickAmounts = [10_000, 50_000, 100_000];
 
 const primaryButtonClass =
   'ui-label inline-flex min-h-14 w-full items-center justify-center gap-2 bg-accent px-6 text-night transition-opacity duration-150 hover:opacity-90 disabled:pointer-events-none disabled:opacity-50';
 
-// Fonte proporcional à largura da coluna (cqi) e ao número de caracteres, para o valor
-// caber numa linha só. 0,65em é a largura aproximada de um caractere da fonte mono.
+
 function Amount({ cents, max }: { cents: number; max: string }) {
   const text = formatMoney(cents);
   return (
@@ -95,7 +94,7 @@ function Balances({ data }: { data: Wallet }) {
         <Amount cents={data.committedCents} max="2.75rem" />
         <p className="ui-label mt-3 text-muted">Reservado nos lotes em que você lidera</p>
       </div>
-      {/* Disponível é o que importa para dar lance: ganha moldura e tamanho maior */}
+      {}
       <div className="min-w-0 py-4 md:pl-6">
         <Frame className="@container px-4 py-3">
           <p className="ui-label">Disponível</p>

@@ -18,12 +18,39 @@ export type LotSummary = {
   bidCount: number;
 };
 
+export type LotBid = { seq: number; bidder: string; amountCents: number; at: string };
+
+
 export type LotView = LotSummary & {
   attributes: Record<string, string>;
-  bids: unknown[];
-  leader: unknown;
-  viewer: unknown;
+  bids: LotBid[];
+  leader: string | null;
+  viewer: string | null;
+  serverTime: string;
   isOwner: boolean;
+  result: LotResult | null;
+};
+
+export type LotResult =
+  | { outcome: 'sold'; amountCents: number; winner: string; youWon: boolean; receiptToken: string | null }
+  | { outcome: 'unsold' };
+
+export type Receipt = {
+  lotId: string;
+  title: string;
+  imageUrl: string | null;
+  attributes: Record<string, string>;
+  winner: string;
+  amountCents: number;
+  bidCount: number;
+  finalHash: string;
+  issuedAt: string;
+};
+
+export type PlaceBidResponse = {
+  bid: { seq: number; amountCents: number; createdAt: string };
+  lot: { id: string; currentPriceCents: number; bidCount: number; endsAt: string };
+  extended: boolean;
 };
 
 export type ExternalItem = {

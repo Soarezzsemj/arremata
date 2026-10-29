@@ -92,3 +92,44 @@ export async function releaseFunds(tx: Tx, userId: string, lotId: string, amount
         data: { walletId: wallet.id, type: 'RELEASE', amountCents, lotId },
     });
 }
+
+
+const PG_INT_MAX = 2_147_483_647;
+
+export async function settleDebit(tx: Tx, userId: string, lotId: string, amountCents: number) {
+  const updated = await tx.wallet.updateMany({
+    where: {
+      userId,
+      committedCents: { gte: amountCents },
+      totalCents: { gte: amountCents },
+    },
+    data: {
+      totalCents: { decrement: amountCents },
+      committedCents: { decrement: amountCents },
+    },
+  });
+  if (updated.count === 0) {
+    throw new Error('Inconsistência na liquidação: saldo comprometido menor que o valor do lote.');
+  }
+
+  const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId } });
+  await tx.ledgerEntry.create({
+    data: { walletId: wallet.id, type: 'SETTLE_DEBIT', amountCents, lotId },
+  });
+}
+
+export async function settleCredit(tx: Tx, userId: string, lotId: string, amountCents: number) {
+  const updated = await tx.wallet.updateMany({
+    where: { userId, totalCents: { lte: PG_INT_MAX - amountCents } },
+    data: { totalCents: { increment: amountCents } },
+  });
+  if (updated.count === 0) {
+    throw new Error('Não foi possível creditar o leiloeiro: carteira inexistente ou no limite.');
+  }
+
+  const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId } });
+  await tx.ledgerEntry.create({
+    data: { walletId: wallet.id, type: 'SETTLE_CREDIT', amountCents, lotId },
+  });
+}
+

@@ -19,7 +19,7 @@ import {
   textLinkClass,
 } from '../lib/ui';
 
-// Mesmo teto do back-end para lotes (R$ 10.000.000,00)
+
 const MAX_LOT_CENTS = 1_000_000_000;
 
 function toLocalInput(date: Date): string {

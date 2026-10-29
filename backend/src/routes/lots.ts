@@ -6,6 +6,8 @@ import { asyncHandler, validate } from '../lib/http';
 import { optionalAuth, requireAuth, requireRole } from '../lib/guards';
 import { AppError, badRequest, conflict, forbidden } from '../lib/errors';
 import { phaseOf, toSummary, toView } from '../lib/lots';
+import { placeBid } from '../services/bids';
+import { settleLot } from '../services/settlement';
 
 export const lotsRouter = Router();
 
@@ -64,7 +66,7 @@ function whereForPhase(
   }
 }
 
-// Criar lote (só leiloeiro)
+//criar lote, apenas leileiro consegue 
 lotsRouter.post(
   '/',
   requireAuth,
@@ -114,8 +116,13 @@ lotsRouter.get(
   optionalAuth,
   asyncHandler(async (req, res) => {
     const id = String(req.params.id);
-    const lot = await prisma.lot.findUnique({ where: { id } });
+
+    let lot = await prisma.lot.findUnique({ where: { id } });
     if (!lot) throw lotNotFound();
+    if (lot.status === 'ACTIVE' && lot.endsAt <= new Date()) {
+      await settleLot(lot.id);
+      lot = await prisma.lot.findUniqueOrThrow({ where: { id } });
+    }
 
     const bids = await prisma.bid.findMany({
       where: { lotId: lot.id },
@@ -123,11 +130,16 @@ lotsRouter.get(
       take: 100,
     });
 
+    const receipt =
+      lot.status === 'SETTLED'
+        ? await prisma.receipt.findUnique({ where: { lotId: lot.id } })
+        : null;
+
     const now = new Date();
     const viewerId = req.user?.userId ?? null;
 
     res.json({
-      ...toView(lot, bids, viewerId, now),
+      ...toView(lot, bids, viewerId, now, receipt),
       isOwner: viewerId !== null && viewerId === lot.auctioneerId,
     });
   }),
@@ -165,4 +177,22 @@ lotsRouter.post(
     const updated = await prisma.lot.findUniqueOrThrow({ where: { id: lot.id } });
     res.json(toSummary(updated));
   }),
+);
+
+
+
+const bidSchema = z.object({
+  amountCents: z.number().int().min(1).max(MAX_CENTS),
+});
+
+lotsRouter.post(
+  '/:id/bids',
+  requireAuth,
+  requireRole('BIDDER'),
+  validate(bidSchema),
+  asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  const result = await placeBid(id, req.user!.userId, req.body.amountCents);
+  res.status(201).json(result);
+}),
 );
