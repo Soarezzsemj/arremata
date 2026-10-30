@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { AppError } from '../lib/errors';
 import { asyncHandler } from '../lib/http';
 import { checkImageRequest, fetchImage } from '../services/images';
 
@@ -12,7 +13,13 @@ imagesRouter.get(
     const width = req.query.w === undefined ? 843 : Number(req.query.w);
     checkImageRequest(imageId, width);
 
-    const image = await fetchImage(imageId, width);
+    let image;
+    try {
+      image = await fetchImage(imageId, width);
+    } catch (err) {
+      if (err instanceof AppError && err.code === 'IMAGE_NOT_FOUND') res.set('Cache-Control', 'public, max-age=300');
+      throw err;
+    }
     res.set({
       'Content-Type': image.contentType,
       'Cache-Control': 'public, max-age=86400',

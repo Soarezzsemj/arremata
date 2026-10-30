@@ -77,7 +77,7 @@ cd arremata
 docker compose up --build
 ```
 
-Sobe o banco, aplica o schema, roda o seed e inicia a API e o front. [CONFERIR: portas e endereços finais do front e da API no `docker-compose.yml`.]
+Sobe o banco, aplica o schema, roda o seed e inicia a API e o front. Abra **http://localhost:8080** (o banco fica exposto na porta 5432, ou em `DB_PORT` se você definir essa variável).
 
 Os segredos do `docker-compose.yml` têm valores padrão fracos, **de propósito, só para rodar localmente**. Em produção defina `JWT_SECRET` e `CHAIN_SECRET` com valores longos e aleatórios.
 
@@ -120,7 +120,7 @@ Para recriar os dados de demonstração: `npm run seed:reset` (apaga só os dado
 | `JWT_SECRET` | Assina os tokens de login | Em produção a API não sobe sem ele |
 | `CHAIN_SECRET` | Chave do HMAC da cadeia de hashes e dos pseudônimos | Em produção a API não sobe sem ele. **Trocar o valor invalida a verificação dos lances antigos** |
 | `PORT` | Porta da API | Padrão 3333 |
-| [CONFERIR O NOME] | Origem permitida no CORS (URL do front) | Em produção, o endereço da Vercel |
+| `CORS_ORIGIN` | Origem permitida no CORS (URL do front, sem barra no final) | Padrão: http://localhost:5173. Em produção, o endereço da Vercel (https://arremata-lyart.vercel.app) |
 
 No front, `VITE_API_URL` só é necessária em produção (URL da API). Os valores de exemplo estão em `backend/.env.example`.
 
@@ -140,10 +140,19 @@ Os testes de banco criam os próprios dados e os apagam no final. **Nunca rode c
 | `lots-result.test.ts` | Resultado do leilão por visitante: vencedor, leiloeiro, outros; nunca expõe o id do vencedor | não |
 | `events.test.ts` | Canal de eventos em memória | não |
 | `images.test.ts`, `app.test.ts` | Proxy de imagens e formato de erro 404 | não |
+| `images-resilience.test.ts` | Museu fora do ar nas imagens: timeout e 5xx dão 503, cache de falha de 30 s, 10 pedidos iguais simultâneos fazem um só fetch, 404 do museu dá 404, imagem acima de 2 MB recusada, cache LRU | não |
+| `external.test.ts` | Busca no museu: 500, 429 e timeout dão `EXTERNAL_API_UNAVAILABLE` (503), cache vencido reaproveitado quando o museu falha, cache dentro do TTL | não |
+| `health.test.ts` | `/api/health` com o banco falhando ou sem responder: 503 `degraded` em até 3 s, sem detalhes do erro | não |
+| `lots-phase.test.ts`, `pseudonym.test.ts` | Cálculo da fase do lote (limites exatos de início e fim, liquidado, cancelado) e pseudônimos estáveis | não |
 | `bids.test.ts` | Lance válido, reserva e liberação de saldo, mínimo, saldo insuficiente, lote encerrado, anti-sniping, lances simultâneos, cadeia íntegra | sim |
 | `settlement.test.ts` | Débito do vencedor, crédito do leiloeiro, comprovante, idempotência, lote sem lances, varredura | sim |
 | `audit.test.ts` | Auditoria pública; **adulterar um lance direto no banco é detectado** | sim |
 | `security.test.ts` | Papéis (RBAC), acesso ao recurso de outro usuário, token falso, corpo grande, `passwordHash` nunca exposto | sim |
+| `cancel.test.ts` | Cancelamento com lances: devolução ao líder, idempotência, dono, lote encerrado, cancelamento e lance simultâneos | sim |
+| `concurrency.test.ts` | Lances simultâneos de vários licitantes, inclusive com o mesmo valor | sim |
+| `lots-list.test.ts` | Lista de lotes: busca, ordem, paginação e parâmetros inválidos | sim |
+
+Total: **90 testes** em 17 arquivos (todos passando com `RUN_DB_TESTS=1`).
 
 ## Arquitetura
 
@@ -197,7 +206,7 @@ sequenceDiagram
 - **Cancelamento:** O leiloeiro dono pode cancelar um lote ainda não encerrado, mesmo com lances. A reserva do líder é devolvida na mesma transação e o histórico de lances continua visível na auditoria.
 - **Pseudônimos:** "Licitante #XXXX" = 4 caracteres hexadecimais de um HMAC de `loteId:usuárioId`. O mesmo usuário tem pseudônimos diferentes em lotes diferentes, e ninguém consegue ligar um pseudônimo a uma conta.
 - **Limites de valor:** depósito de R$ 1,00 a R$ 100.000,00; saldo total máximo de R$ 20.000.000,00; preços de lote até R$ 10.000.000,00.
-- **Erros:** sempre `{ "error": { "code", "message", "details?" } }`. Códigos de negócio: `BELOW_MIN` (com `minCents`), `INSUFFICIENT_FUNDS` (com `availableCents`), `ALREADY_LEADING`, `NOT_STARTED`, `ENDED`, `LOT_CANCELLED`, `LOT_HAS_BIDS`, `WALLET_LIMIT`, `EMAIL_TAKEN`, `FORBIDDEN_ROLE`, `RATE_LIMITED`, `EXTERNAL_API_UNAVAILABLE`.
+- **Erros:** sempre `{ "error": { "code", "message", "details?" } }`. Códigos de negócio: `BELOW_MIN` (com `minCents`), `INSUFFICIENT_FUNDS` (com `availableCents`), `ALREADY_LEADING`, `NOT_STARTED`, `ENDED`, `LOT_CANCELLED`, `WALLET_LIMIT`, `EMAIL_TAKEN`, `FORBIDDEN_ROLE`, `RATE_LIMITED`, `EXTERNAL_API_UNAVAILABLE`, `IMAGE_NOT_FOUND`.
 
 ### API em resumo
 
@@ -216,8 +225,8 @@ sequenceDiagram
 | `GET /api/me/bids` | licitante | Lotes em que deu lance e a situação em cada um |
 | `GET /api/audit/:lotId` | público | Histórico com hashes e verificação |
 | `GET /api/receipts/:token` | público (por link) | Comprovante |
-| `GET /api/images/:id?w=` | público | Proxy das imagens do museu |
-| `GET /api/health` | público | Estado da API e do banco |
+| `GET /api/images/:id?w=` | público | Proxy das imagens do museu (`404 IMAGE_NOT_FOUND` se o museu não tem a imagem; `503 EXTERNAL_API_UNAVAILABLE` se ele está fora) |
+| `GET /api/health` | público | Estado da API e do banco (`503` com `{ status: 'degraded', db: 'down' }` se o banco falhar ou passar de 3 s) |
 | `GET /api/lots?phase=&q=&sort=&page=&limit=` | público | Lista com busca, ordem e paginação (até 50 por página) |
 
 nenhum dinheiro real é movimentado, é apenas dinheiro de teste
@@ -323,10 +332,11 @@ O primeiro lance aponta para um hash inicial do lote (`genesisHash`). Além da c
 - **Sessão (JWT) de 7 dias sem revogação:** o token continua válido até expirar, mesmo depois de uma troca de senha (não há tela de troca de senha). O papel do usuário vem do token.
 - **Pseudônimos de 4 caracteres** podem colidir (raro).
 - **Depósito simulado,** sem pagamento real.
-- **Banco gratuito do Render:** o plano gratuito tem prazo de validade definido pelo Render. [CONFERIR a data no painel antes da avaliação.]
+- **Banco gratuito do Render:** o plano gratuito expira em 23/11/2026 (conforme o painel) e o banco é apagado depois dessa data, a menos que seja migrado ou renovado. Os dados de demonstração podem ser recriados a qualquer momento com o seed (`npm run seed`) em um banco novo.
 - **Banco criado com `prisma db push`,** sem histórico de migrations versionadas. Para evoluir o schema em produção, o ideal é migrar para `prisma migrate`.
 - **Aviso do `npm audit`:** 3 avisos de severidade alta no back-end, todos vindos de uma dependência da CLI do Prisma 6 (`deepmerge-ts`), usada só em build e comandos de desenvolvimento, sem entrada de usuário. A correção exige migrar para o Prisma 7 (mudança que quebra compatibilidade) e ficou como melhoria futura. O front tem 0 avisos.
-- **Imagens do museu:** se o Art Institute estiver fora do ar na hora do seed ou de uma busca, o lote usa dados de reserva ou aparece com um espaço reservado no lugar da imagem.
+- **Museu fora do ar:** vitrine, sala do lote, auditoria, lances e comprovante continuam funcionando, porque título, atributos e imagem do lote são gravados no nosso banco na criação. Só as imagens (que viram um bloco com a inicial do título quando não estão em cache) e a busca do leiloeiro (mensagem de indisponibilidade; se houver resultado em cache, ele é reaproveitado) são afetadas. As imagens têm cache de falha de 30 s e os pedidos iguais simultâneos são agrupados. Os caches ficam em memória e se perdem a cada reinício da API. O seed, com o museu fora, cria os lotes sem imagem, depois de até ~20 s de espera.
+- **Evolução futura (museu):** retentativa com respeito ao `Retry-After` para 429, cache de imagens em disco e seed com as buscas em paralelo.
 - **Navegador:** o botão de copiar só funciona em `https` ou `localhost`.
 
 ## Segurança
@@ -346,6 +356,7 @@ O primeiro lance aponta para um hash inicial do lote (`genesisHash`). Além da c
 - **CI (GitHub Actions):** a cada push, instala, checa os tipos, sobe um PostgreSQL e roda todos os testes com `RUN_DB_TESTS=1`.
 - **CD:** com o CI verde, o deploy é feito automaticamente.
 - **Seed em produção:** rodado uma vez a partir de uma máquina local contra o banco do Render, com `npx tsx prisma/seed.ts --yes` e **o mesmo `CHAIN_SECRET` da produção** (senão a auditoria acusaria adulteração nos lances do seed). O script recusa rodar contra banco remoto sem `--yes` e sem `CHAIN_SECRET`.
+- No Render, o comando de início do container é `npm start` (Docker Command): o seed NÃO roda a cada deploy. O seed de produção é rodado uma vez, à mão, a partir de uma máquina local, com `--yes` e o mesmo CHAIN_SECRET da produção.
 
 ## Uso de IA
 
@@ -359,5 +370,5 @@ Usei IA ao longo de todo o projeto, e prefiro declarar com clareza onde e como. 
 | Parte | Origem | Como validei |
 |---|---|---|
 | Modelo de dados, rotas, carteira, lotes, imagens, autenticação | escrito por mim | Testes, Bruno, uso real |
-| Motor de lances, liquidação, cadeia de hashes, auditoria, SSE, seed, testes de banco | escrito por mim e diagnosticado pelo claude code para achar brechas e sugerir melhorias  | `npm test` (48 testes), teste com duas janelas, adulteração manual no banco |
+| Motor de lances, liquidação, cadeia de hashes, auditoria, SSE, seed, testes de banco | escrito por mim e diagnosticado pelo claude code para achar brechas e sugerir melhorias  | `npm test`, teste com duas janelas, adulteração manual no banco |
 | Front-end e Back-end inteiro | escrito por mim | Testes manuais em computador e celular |

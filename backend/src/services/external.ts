@@ -74,12 +74,15 @@ export async function searchArtworks(q: string): Promise<ExternalItem[]> {
   const cached = cache.get(key);
 
   if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+    cache.delete(key);
+    cache.set(key, cached);
     return cached.items;
   }
 
   try {
     const items = await fetchFromArtic(q.trim());
 
+    cache.delete(key);
     if (cache.size >= CACHE_MAX_ENTRIES) {
       const oldest = cache.keys().next().value;
       if (oldest !== undefined) cache.delete(oldest);
@@ -91,4 +94,9 @@ export async function searchArtworks(q: string): Promise<ExternalItem[]> {
     if (cached) return cached.items; 
     throw err; 
   }
+}
+
+// so p testar
+export function resetSearchCacheForTests() {
+  cache.clear();
 }

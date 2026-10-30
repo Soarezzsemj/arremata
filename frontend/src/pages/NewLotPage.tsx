@@ -68,7 +68,9 @@ export function NewLotPage() {
 
   function onSearch(e: FormEvent) {
     e.preventDefault();
-    setTerm(q.trim());
+    const next = q.trim();
+    if (next === term && next.length >= 2) search.refetch();
+    else setTerm(next);
   }
 
   function onCreate(e: FormEvent) {
@@ -115,7 +117,21 @@ export function NewLotPage() {
                 ))}
               </div>
             )}
-            {search.isError && <p className={errorClass}>{errorMessage(search.error)}</p>}
+            {search.isError && (
+              <div className="space-y-4">
+                <p role="alert" className={errorClass}>
+                  {errorMessage(search.error)}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => search.refetch()}
+                  disabled={search.isFetching}
+                  className={secondaryButtonClass}
+                >
+                  Tentar de novo
+                </button>
+              </div>
+            )}
             {search.isSuccess && search.data.items.length === 0 && (
               <p className="ui-label border border-line px-6 py-12 text-center text-muted">Nada encontrado</p>
             )}
