@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { app } from '../src/app';
-
-// Cada teste usa um id diferente porque o cache em memória dura o processo todo
 const ID_OK = '3c27b499-af56-f0d5-93b5-a7f2f1ad5813';
 const ID_CHALLENGE = '11111111-2222-3333-4444-555555555555';
 const ID_CACHE = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
@@ -14,7 +12,6 @@ function jpegResponse() {
 }
 
 describe('GET /api/images/:imageId', () => {
-  // Nada de internet: o fetch global é trocado por um mock em cada teste
   const fetchMock = vi.fn<typeof fetch>();
 
   beforeEach(() => {

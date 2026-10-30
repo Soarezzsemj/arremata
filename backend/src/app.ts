@@ -11,12 +11,15 @@ import { imagesRouter } from './routes/images';
 import { meRouter } from './routes/me';
 import { receiptsRouter } from './routes/receipts';
 import { auditRouter } from './routes/audit';
+import helmet from 'helmet';
 
 
 export const app = express();
+app.set('trust proxy', 1);
+app.use(helmet());
 
 app.use(cors({ origin: config.corsOrigin }));
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 
 app.use('/api', healthRouter);
 app.use('/api/audit', auditRouter);

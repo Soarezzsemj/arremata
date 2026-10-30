@@ -7,6 +7,7 @@ import { badRequest } from '../lib/errors';
 import { toSummary } from '../lib/lots';
 import { pseudonym } from '../lib/pseudonym';
 import { searchArtworks } from '../services/external';
+import { searchLimiter } from '../lib/rateLimit';
 
 export const auctioneerRouter = Router();
 
@@ -16,6 +17,7 @@ auctioneerRouter.get(
   '/search',
   requireAuth,
   requireRole('AUCTIONEER'),
+  searchLimiter,
   asyncHandler(async (req, res) => {
     const parsed = searchQuery.safeParse(req.query);
     if (!parsed.success) throw badRequest('Informe ao menos 2 letras para buscar.');

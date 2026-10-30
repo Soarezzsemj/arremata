@@ -4,7 +4,7 @@ import { Link, NavLink, useLocation, useSearchParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { apiGet } from '../lib/api';
 import { formatMoney } from '../lib/format';
-import type { LotSummary } from '../lib/types';
+import type { LotsPage } from '../lib/types';
 import { walletQuery } from '../lib/wallet';
 import { Brand } from './Brand';
 import { Square } from './Square';
@@ -28,11 +28,11 @@ export function Header() {
   const [open, setOpen] = useState(false);
 
   const lots = useQuery({
-    queryKey: ['lots', ''],
-    queryFn: () => apiGet<{ lots: LotSummary[]; serverTime: string }>('/lots'),
+    queryKey: ['lots', 'count'],
+    queryFn: () => apiGet<LotsPage>('/lots?limit=1'),
     refetchInterval: 10_000,
   });
-  const count = lots.data?.lots.length;
+  const count = lots.data?.total;
 
   const wallet = useQuery({
     ...walletQuery,

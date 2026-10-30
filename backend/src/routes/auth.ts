@@ -4,21 +4,22 @@ import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, validate } from '../lib/http';
 import { requireAuth } from '../lib/guards';
-import { hashPassword, verifyPassword, signToken } from '../lib/auth';
+import { hashPassword, verifyPassword, signToken, DUMMY_PASSWORD_HASH } from '../lib/auth';
 import { conflict, invalidCredentials, unauthorized } from '../lib/errors';
+import { loginLimiter, registerLimiter } from '../lib/rateLimit';
 
 export const authRouter = Router();
 
 const registerSchema = z.object({
-  name: z.string().trim().min(2),
-  email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(6),
+  name: z.string().trim().min(2).max(100),
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(6).max(72),
   role: z.enum(['AUCTIONEER', 'BIDDER']),
 });
 
 const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(1),
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(1).max(72),
 });
 
 function toUser(u: { id: string; name: string; email: string; role: string }) {
@@ -27,6 +28,7 @@ function toUser(u: { id: string; name: string; email: string; role: string }) {
 
 authRouter.post(
   '/register',
+  registerLimiter,
   validate(registerSchema),
   asyncHandler(async (req, res) => {
     const { name, email, password, role } = req.body;
@@ -55,12 +57,14 @@ authRouter.post(
 
 authRouter.post(
   '/login',
+  loginLimiter,
   validate(loginSchema),
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
     const user = await prisma.user.findUnique({ where: { email } });
-    const ok = user ? await verifyPassword(password, user.passwordHash) : false;
+
+    const ok = await verifyPassword(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
     if (!user || !ok) throw invalidCredentials('E-mail ou senha incorretos.');
 
     res.json({

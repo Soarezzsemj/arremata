@@ -74,7 +74,15 @@ function bidErrorMessage(err: unknown): ReactNode {
   }
 }
 
-export function BidPanel({ lot, queryKey }: { lot: LotView; queryKey: readonly unknown[] }) {
+export function BidPanel({
+  lot,
+  queryKey,
+  onExtended,
+}: {
+  lot: LotView;
+  queryKey: readonly unknown[];
+  onExtended?: () => void;
+}) {
   const queryClient = useQueryClient();
   const wallet = useQuery(walletQuery);
  
@@ -107,6 +115,7 @@ export function BidPanel({ lot, queryKey }: { lot: LotView; queryKey: readonly u
       queryClient.invalidateQueries({ queryKey: ['my-bids'] });
       setTyped(null);
       setDone({ amountCents: res.bid.amountCents, extended: res.extended });
+      if (res.extended) onExtended?.();
     },
     onError: (err) => {
       const code = asApiError(err)?.code;

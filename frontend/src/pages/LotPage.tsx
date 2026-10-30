@@ -1,19 +1,23 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { ArtImage } from '../components/ArtImage';
 import { BidPanel, isLeading } from '../components/BidPanel';
+import { CancelledSeal } from '../components/CancelledSeal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Countdown } from '../components/Countdown';
+import { FinalCountdown, SettlingStatus, useExtendedNotice } from '../components/FinalCountdown';
 import { Frame } from '../components/Frame';
 import { PhaseBadge } from '../components/PhaseBadge';
 import { SkeletonLine } from '../components/Skeleton';
 import { Square } from '../components/Square';
-import { apiGet, apiPost } from '../lib/api';
+import { apiGet, apiPost, type ApiError } from '../lib/api';
 import { errorMessage, formatDateTime, formatMoney } from '../lib/format';
 import { currentPath, withNext } from '../lib/next';
-import type { LotSummary, LotView } from '../lib/types';
+import type { CancelLotResponse, LotView } from '../lib/types';
 import { containerClass, errorClass, secondaryButtonClass } from '../lib/ui';
+import { serverNow } from '../lib/serverClock';
 import { useLotEvents } from '../lib/useLotEvents';
 import { walletQuery } from '../lib/wallet';
 
@@ -35,6 +39,10 @@ function pollInterval(lot: LotView, streaming: boolean): number | false {
 const END_REFETCH_DELAY_MS = 1_000;
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
+
+function isEndedError(err: unknown) {
+  return !!err && typeof err === 'object' && 'code' in err && (err as ApiError).code === 'ENDED';
+}
 
 export function LotPage() {
   const { id } = useParams();
@@ -58,7 +66,7 @@ export function LotPage() {
   const endsAt = lot.data?.endsAt;
   useEffect(() => {
     if (phase !== 'live' || !endsAt) return;
-    const delay = new Date(endsAt).getTime() - Date.now() + END_REFETCH_DELAY_MS;
+    const delay = new Date(endsAt).getTime() - serverNow() + END_REFETCH_DELAY_MS;
     if (delay > MAX_TIMEOUT_MS) return;
     const timer = setTimeout(() => {
       queryClient.invalidateQueries({ queryKey: ['lot', id] });
@@ -67,14 +75,34 @@ export function LotPage() {
     return () => clearTimeout(timer);
   }, [phase, endsAt, id, queryClient]);
 
+  const extendedNotice = useExtendedNotice(id, phase === 'live' ? endsAt : undefined);
+
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [cancelNotice, setCancelNotice] = useState<string | null>(null);
   const cancel = useMutation({
-    mutationFn: () => apiPost<LotSummary>(`/lots/${id}/cancel`),
-    onSuccess: () => {
+    mutationFn: () => apiPost<CancelLotResponse>(`/lots/${id}/cancel`),
+    onSuccess: (res) => {
+      setCancelNotice(
+        res.refundedCents > 0
+          ? `Lote cancelado. ${formatMoney(res.refundedCents)} voltaram ao saldo disponível do líder.`
+          : 'Lote cancelado.',
+      );
+    },
+    onSettled: () => {
+      setConfirmingCancel(false);
       queryClient.invalidateQueries({ queryKey: ['lot'] });
       queryClient.invalidateQueries({ queryKey: ['lots'] });
       queryClient.invalidateQueries({ queryKey: ['auctioneer-lots'] });
+      queryClient.invalidateQueries({ queryKey: walletQuery.queryKey });
     },
   });
+
+  const resetCancel = cancel.reset;
+  useEffect(() => {
+    setCancelNotice(null);
+    setConfirmingCancel(false);
+    resetCancel();
+  }, [id, resetCancel]);
 
   if (lot.isPending) {
     return (
@@ -101,7 +129,8 @@ export function LotPage() {
   }
 
   const data = lot.data;
-  const canCancel = data.isOwner && data.bidCount === 0 && (data.phase === 'live' || data.phase === 'scheduled');
+  const canCancel = data.isOwner && (data.phase === 'live' || data.phase === 'scheduled');
+  const cancelled = data.phase === 'cancelled';
   const attributes = Object.entries(data.attributes);
   const leading = user?.role === 'BIDDER' && data.phase === 'live' && isLeading(data);
 
@@ -129,15 +158,33 @@ export function LotPage() {
           <div className="flex items-center justify-between gap-4 py-3">
             {}
             <span className="ui-label text-muted">Lote {data.id.slice(0, 8)}</span>
-            <PhaseBadge phase={data.phase} />
+            {cancelled ? <CancelledSeal /> : <PhaseBadge phase={data.phase} />}
           </div>
+
+          {cancelled && (
+            <div role="status" className="py-6">
+              <Frame className="px-5 py-5">
+                <p className="ui-label flex items-center gap-2">
+                  <Square />
+                  Leilão cancelado
+                </p>
+                <p className="mt-3 text-sm">
+                  {data.bidCount > 0
+                    ? 'O leilão foi encerrado sem vencedor e o saldo reservado do líder foi devolvido. O histórico de lances continua visível abaixo e na auditoria.'
+                    : 'O leilão foi encerrado sem vencedor.'}
+                </p>
+              </Frame>
+            </div>
+          )}
 
           <h1 className="ui-display py-6 text-[clamp(2.25rem,5.5vw,4.75rem)] leading-[0.92] [overflow-wrap:anywhere]">
             {data.title}
           </h1>
 
           <div className="py-6 tabular-nums">
-            <p className="ui-label text-muted">{data.currentPriceCents !== null ? 'Lance atual' : 'Lance inicial'}</p>
+            <p className="ui-label text-muted">
+              {data.currentPriceCents !== null ? (cancelled ? 'Último lance' : 'Lance atual') : 'Lance inicial'}
+            </p>
             <p className="mt-2 font-mono text-[clamp(2.5rem,6vw,4.5rem)] leading-none tracking-tight">
               {formatMoney(data.currentPriceCents ?? data.startPriceCents)}
             </p>
@@ -163,7 +210,8 @@ export function LotPage() {
             </div>
           </dl>
 
-          {(data.phase === 'live' || data.phase === 'scheduled') && (
+          {data.phase === 'live' && <FinalCountdown endsAt={data.endsAt} extended={extendedNotice.visible} />}
+          {data.phase === 'scheduled' && (
             <p className="py-4 font-mono text-lg uppercase tabular-nums">
               <Countdown phase={data.phase} startsAt={data.startsAt} endsAt={data.endsAt} />
             </p>
@@ -185,15 +233,19 @@ export function LotPage() {
             </dl>
           )}
 
-          {(data.phase === 'ended' || data.phase === 'cancelled') && <ResultBlock lot={data} />}
+          {data.phase === 'ended' && <ResultBlock lot={data} />}
 
           {}
           {!authLoading && user?.role !== 'AUCTIONEER' &&
             (data.phase === 'scheduled' ? (
               <p className="ui-label py-6 text-muted">Leilão agendado: os lances abrem quando ele começar.</p>
+            ) : cancelled ? (
+              <p aria-disabled="true" className="ui-label py-6 text-muted">
+                Lances fechados: este leilão foi cancelado.
+              </p>
             ) : data.phase !== 'live' ? null : user?.role === 'BIDDER' ? (
               <div>
-                <BidPanel lot={data} queryKey={lotKey} />
+                <BidPanel lot={data} queryKey={lotKey} onExtended={extendedNotice.show} />
                 {data.viewer && (
                   <p className="pb-6 text-sm">
                     Neste lote você aparece como <strong>{data.viewer}</strong>.
@@ -217,20 +269,53 @@ export function LotPage() {
             </Link>
           </p>
 
-          {canCancel && (
+          {(canCancel || cancelNotice || cancel.isError) && (
             <div className="space-y-3 py-6">
-              <button
-                type="button"
-                disabled={cancel.isPending}
-                onClick={() => {
-                  if (confirm('Cancelar este lote?')) cancel.mutate();
-                }}
-                className={secondaryButtonClass}
-              >
-                Cancelar lote
-              </button>
-              {cancel.isError && <p className={errorClass}>{errorMessage(cancel.error)}</p>}
+              {canCancel && (
+                <button
+                  type="button"
+                  disabled={cancel.isPending}
+                  aria-haspopup="dialog"
+                  onClick={() => setConfirmingCancel(true)}
+                  className={secondaryButtonClass}
+                >
+                  {cancel.isPending ? 'Cancelando...' : 'Cancelar lote'}
+                </button>
+              )}
+              {cancelNotice && (
+                <p role="status" className="border-l-2 border-ink pl-3 text-sm">
+                  {cancelNotice}
+                </p>
+              )}
+              {cancel.isError && (
+                <p role="alert" className={errorClass}>
+                  {isEndedError(cancel.error) ? 'Este lote já foi encerrado.' : errorMessage(cancel.error)}
+                </p>
+              )}
             </div>
+          )}
+
+          {data.isOwner && (
+            <ConfirmDialog
+              open={confirmingCancel}
+              title="Cancelar lote"
+              confirmLabel="Cancelar lote"
+              pendingLabel="Cancelando..."
+              pending={cancel.isPending}
+              onConfirm={() => cancel.mutate()}
+              onClose={() => setConfirmingCancel(false)}
+            >
+              {data.bidCount > 0 ? (
+                <p>
+                  Este lote tem {data.bidCount} lance(s). Ao cancelar, o leilão é encerrado sem vencedor e o saldo
+                  reservado do líder (
+                  <span className="font-mono tabular-nums">{formatMoney(data.currentPriceCents ?? 0)}</span>) é
+                  devolvido. O histórico continua visível na auditoria.
+                </p>
+              ) : (
+                <p>Cancelar este lote? Ele ainda não recebeu lances e sai da lista de leilões.</p>
+              )}
+            </ConfirmDialog>
           )}
         </div>
       </div>
@@ -242,15 +327,8 @@ function ResultBlock({ lot }: { lot: LotView }) {
   const { result } = lot;
   let content: ReactNode;
 
-  if (lot.phase === 'cancelled') {
-    content = <p className="ui-label">Lote cancelado</p>;
-  } else if (result === null) {
-    content = (
-      <p className="ui-label inline-flex items-center gap-2">
-        <span aria-hidden="true" className="size-2 animate-pulse bg-current" />
-        Encerrado. Apurando resultado...
-      </p>
-    );
+  if (result === null) {
+    content = <SettlingStatus>Encerrado. Apurando resultado...</SettlingStatus>;
   } else if (result.outcome === 'unsold') {
     content = <p className="ui-label">Encerrado sem lances</p>;
   } else {

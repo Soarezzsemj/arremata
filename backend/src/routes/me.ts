@@ -45,12 +45,15 @@ meRouter.get(
     });
 
     res.json({
-      lots: lots.map((lot) => {
-        const ended = phaseOf(lot, now) === 'ended';
+           lots: lots.map((lot) => {
+        const phase = phaseOf(lot, now);
         const isLeader = lot.leaderId === userId;
-        const standing = ended
-          ? isLeader ? 'won' : 'lost'
-          : isLeader ? 'leading' : 'outbid';
+        const standing =
+          phase === 'cancelled'
+            ? 'cancelled'
+            : phase === 'ended'
+              ? isLeader ? 'won' : 'lost'
+              : isLeader ? 'leading' : 'outbid';
         return {
           ...toSummary(lot, now),
           myLastBidCents: lot.bids[0]?.amountCents ?? null,

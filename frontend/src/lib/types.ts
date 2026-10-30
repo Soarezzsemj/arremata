@@ -18,8 +18,22 @@ export type LotSummary = {
   bidCount: number;
 };
 
-export type LotBid = { seq: number; bidder: string; amountCents: number; at: string };
+export type ListPhase = Exclude<Phase, 'cancelled'>;
 
+export type LotSort = 'ending' | 'newest' | 'bids' | 'price_asc' | 'price_desc';
+
+export type LotsPage = {
+  lots: LotSummary[];
+  serverTime: string;
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+export type CancelLotResponse = LotSummary & { refundedCents: number };
+
+export type LotBid = { seq: number; bidder: string; amountCents: number; at: string };
 
 export type LotView = LotSummary & {
   attributes: Record<string, string>;
@@ -77,7 +91,7 @@ export type Wallet = {
   entries: LedgerEntry[];
 };
 
-export type BidStanding = 'leading' | 'outbid' | 'won' | 'lost';
+export type BidStanding = 'leading' | 'outbid' | 'won' | 'lost' | 'cancelled';
 
 export type MyBidLot = LotSummary & {
   myLastBidCents: number | null;

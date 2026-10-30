@@ -1,3 +1,5 @@
+import { syncServerClock } from './serverClock';
+
 export const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const TOKEN_KEY = 'token';
@@ -21,7 +23,7 @@ export function setToken(token: string | null) {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
-    // Sem localStorage o login só não sobrevive quando recarregar a página
+    // sem localStorage o login so não sobrevive quando recarregar a página
   }
 }
 
@@ -32,6 +34,7 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown):
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let res: Response;
+  const sentAt = Date.now();
   try {
     res = await fetch(`${API_URL}${path}`, {
       method,
@@ -44,6 +47,7 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown):
   }
 
   const data = await res.json().catch(() => null);
+  if (data && typeof data === 'object') syncServerClock(data.serverTime, sentAt, Date.now());
   if (!res.ok) {
     const error: ApiError = data?.error ?? { code: 'INTERNAL', message: 'Erro ao falar com a API' };
     throw error;

@@ -3,6 +3,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { ArtImage } from '../components/ArtImage';
+import { CancelledSeal } from '../components/CancelledSeal';
 import { Countdown } from '../components/Countdown';
 import { PhaseBadge } from '../components/PhaseBadge';
 import { SkeletonLine } from '../components/Skeleton';
@@ -199,10 +200,15 @@ function ItemTitle({ lot }: { lot: LotSummary }) {
   return <h3 className="ui-display mt-1 line-clamp-2 text-xl leading-[1.05] [overflow-wrap:anywhere] md:text-2xl">{lot.title}</h3>;
 }
 
+function priceLabel(lot: LotSummary) {
+  if (isActive(lot)) return 'Lance atual';
+  return lot.phase === 'cancelled' ? 'Último lance' : 'Lance final';
+}
+
 function PriceLine({ lot }: { lot: LotSummary }) {
   return (
     <div className="flex flex-wrap justify-between gap-x-3">
-      <dt className="text-muted">{lot.currentPriceCents !== null ? (isActive(lot) ? 'Lance atual' : 'Lance final') : 'Lance inicial'}</dt>
+      <dt className="text-muted">{lot.currentPriceCents !== null ? priceLabel(lot) : 'Lance inicial'}</dt>
       <dd>{formatMoney(lot.currentPriceCents ?? lot.startPriceCents)}</dd>
     </div>
   );
@@ -225,11 +231,20 @@ const standingLabels: Record<BidStanding, string> = {
   outbid: 'Superado',
   won: 'Arrematado',
   lost: 'Não venceu',
+  cancelled: 'Cancelado — saldo devolvido',
 };
 
 function StandingBadge({ standing }: { standing: BidStanding }) {
   if (standing === 'won') {
     return <span className="ui-label inline-flex items-center gap-2 bg-accent px-2 py-1 text-night">{standingLabels.won}</span>;
+  }
+  if (standing === 'cancelled') {
+    return (
+      <span className="ui-label inline-flex items-center gap-2 border border-gray px-2 py-1 text-muted">
+        <span aria-hidden="true" className="size-2 bg-gray" />
+        {standingLabels.cancelled}
+      </span>
+    );
   }
   return (
     <span className={`ui-label inline-flex items-center gap-2 ${standing === 'leading' ? 'border border-ink px-2 py-1' : 'text-muted'}`}>
@@ -278,9 +293,7 @@ function AuctioneerItem({ lot }: { lot: AuctioneerLot }) {
   return (
     <>
       <ItemTitle lot={lot} />
-      <div className="mt-3">
-        <PhaseBadge phase={lot.phase} />
-      </div>
+      <div className="mt-3">{lot.phase === 'cancelled' ? <CancelledSeal /> : <PhaseBadge phase={lot.phase} />}</div>
       <dl className="ui-label mt-3 max-w-md space-y-1 tabular-nums">
         <PriceLine lot={lot} />
         <div className="flex flex-wrap justify-between gap-x-3">
@@ -289,6 +302,9 @@ function AuctioneerItem({ lot }: { lot: AuctioneerLot }) {
         </div>
         <CountdownLine lot={lot} />
       </dl>
+      {lot.phase === 'cancelled' && lot.bidCount > 0 && (
+        <p className="ui-label mt-3 text-muted">Encerrado sem vencedor. O saldo reservado do líder foi devolvido.</p>
+      )}
       {lot.phase === 'ended' && (
         <p className="ui-label mt-3">
           {result === null ? (

@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useId, useState } from 'react';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import { ArtImage } from '../components/ArtImage';
 import { Countdown } from '../components/Countdown';
@@ -9,51 +10,127 @@ import { ScrambleText } from '../components/ScrambleText';
 import { Square } from '../components/Square';
 import { apiGet } from '../lib/api';
 import { errorMessage, formatMoney } from '../lib/format';
-import type { LotSummary } from '../lib/types';
-import { containerClass, errorClass } from '../lib/ui';
+import type { ListPhase, LotSort, LotsPage, LotSummary } from '../lib/types';
+import { containerClass, errorClass, inputClass, secondaryButtonClass } from '../lib/ui';
 
-const filters = [
-  { value: '', label: 'Todos', empty: 'Nenhum lote por aqui' },
-  { value: 'live', label: 'Ao vivo', empty: 'Nenhum lote ao vivo agora' },
-  { value: 'scheduled', label: 'Agendados', empty: 'Nenhum lote agendado' },
-  { value: 'ended', label: 'Encerrados', empty: 'Nenhum lote encerrado' },
+const filters: { value: ListPhase | ''; label: string }[] = [
+  { value: '', label: 'Todos' },
+  { value: 'live', label: 'Ao vivo' },
+  { value: 'scheduled', label: 'Agendados' },
+  { value: 'ended', label: 'Encerrados' },
 ];
 
-type LotsResponse = { lots: LotSummary[]; serverTime: string };
+const sorts: { value: LotSort; label: string }[] = [
+  { value: 'ending', label: 'Termina primeiro' },
+  { value: 'newest', label: 'Mais recentes' },
+  { value: 'bids', label: 'Mais lances' },
+  { value: 'price_asc', label: 'Menor preço' },
+  { value: 'price_desc', label: 'Maior preço' },
+];
+
+const DEFAULT_SORT: LotSort = 'ending';
+const PAGE_SIZE = 12;
+const SEARCH_DEBOUNCE_MS = 400;
+const MAX_QUERY_LENGTH = 100;
+
+type ListParams = { phase: ListPhase | ''; sort: LotSort; q: string };
+
+function normalizeQuery(value: string | null) {
+  return (value ?? '').trim().slice(0, MAX_QUERY_LENGTH);
+}
+
+function readListParams(params: URLSearchParams): ListParams {
+  const rawPhase = params.get('phase');
+  const rawSort = params.get('sort');
+  return {
+    phase: filters.find((f) => f.value !== '' && f.value === rawPhase)?.value ?? '',
+    sort: sorts.find((s) => s.value === rawSort)?.value ?? DEFAULT_SORT,
+    q: normalizeQuery(params.get('q')),
+  };
+}
+
+function lotsPath({ phase, sort, q }: ListParams, page: number) {
+  const search = new URLSearchParams({ sort, page: String(page), limit: String(PAGE_SIZE) });
+  if (phase) search.set('phase', phase);
+  if (q) search.set('q', q);
+  return `/lots?${search}`;
+}
 
 export function HomePage() {
   const [params, setParams] = useSearchParams();
-  const phase = params.get('phase') ?? '';
+  const { phase, sort, q } = readListParams(params);
 
-  const lots = useQuery({
-    queryKey: ['lots', phase],
-    queryFn: () =>
-      apiGet<{ lots: LotSummary[]; serverTime: string }>(phase ? `/lots?phase=${phase}` : '/lots'),
+  function updateParams(changes: Partial<ListParams>) {
+    setParams(
+      (prev) => {
+        const next = { ...readListParams(prev), ...changes };
+        const out = new URLSearchParams();
+        if (next.q) out.set('q', next.q);
+        if (next.sort !== DEFAULT_SORT) out.set('sort', next.sort);
+        if (next.phase) out.set('phase', next.phase);
+        return out;
+      },
+      { replace: 'q' in changes },
+    );
+  }
+
+  const [text, setText] = useState(q);
+
+  useEffect(() => {
+    setText((prev) => (normalizeQuery(prev) === q ? prev : q));
+  }, [q]);
+
+  useEffect(() => {
+    const next = normalizeQuery(text);
+    if (next === q) return;
+    const timer = setTimeout(() => updateParams({ q: next }), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [text, q]);
+
+  function clearSearch() {
+    setText('');
+    updateParams({ q: '' });
+  }
+
+  const lots = useInfiniteQuery({
+    queryKey: ['lots', 'list', { phase, sort, q }],
+    queryFn: ({ pageParam }) => apiGet<LotsPage>(lotsPath({ phase, sort, q }, pageParam)),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    placeholderData: keepPreviousData,
     refetchInterval: 10_000,
   });
+
+  const seen = new Set<string>();
+  const items = (lots.data?.pages ?? [])
+    .flatMap((p) => p.lots)
+    .filter((lot) => {
+      if (seen.has(lot.id)) return false;
+      seen.add(lot.id);
+      return true;
+    });
+  const total = lots.data?.pages[0]?.total;
 
   const live = useQuery({
-    queryKey: ['lots', 'live'],
-    queryFn: () => apiGet<LotsResponse>('/lots?phase=live'),
+    queryKey: ['lots', 'hero'],
+    queryFn: () => apiGet<LotsPage>('/lots?phase=live&sort=ending&limit=2'),
     refetchInterval: 10_000,
   });
-  const endingSoon = [...(live.data?.lots ?? [])].sort(
-    (a, b) => new Date(a.endsAt).getTime() - new Date(b.endsAt).getTime(),
-  );
 
-  const current = filters.find((f) => f.value === phase) ?? filters[0];
+  const searchId = useId();
+  const sortId = useId();
 
   return (
     <>
       <h1 className="sr-only">Arremata: leilões de obras de arte</h1>
-      <Hero pending={live.isPending} first={endingSoon[0]} next={endingSoon[1]} />
+      <Hero pending={live.isPending} first={live.data?.lots[0]} next={live.data?.lots[1]} />
 
       <section aria-labelledby="titulo-lotes" className={`${containerClass} mt-16 md:mt-24`}>
         <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 border-b border-line pb-4">
           <h2 id="titulo-lotes" className="ui-label flex items-center gap-2">
             <Square />
             Lotes
-            {lots.isSuccess && <span className="text-muted">[{String(lots.data.lots.length).padStart(2, '0')}]</span>}
+            {total !== undefined && <span className="text-muted">[{total === 1 ? '1 lote' : `${total} lotes`}]</span>}
           </h2>
 
           <div role="group" aria-label="Filtrar por fase" className="flex flex-wrap gap-x-6">
@@ -61,7 +138,7 @@ export function HomePage() {
               <span key={f.value} className="inline-flex items-center gap-6">
                 <button
                   type="button"
-                  onClick={() => setParams(f.value ? { phase: f.value } : {})}
+                  onClick={() => updateParams({ phase: f.value })}
                   aria-pressed={phase === f.value}
                   className={`ui-label inline-flex min-h-11 items-center transition-colors duration-150 ${
                     phase === f.value ? 'underline decoration-1 underline-offset-4' : 'text-muted hover:text-ink'
@@ -69,7 +146,7 @@ export function HomePage() {
                 >
                   {f.label}
                 </button>
-                {/* Separador fora do botão para não herdar o sublinhado do filtro ativo */}
+                {}
                 {i < filters.length - 1 && (
                   <span aria-hidden="true" className="ui-label text-muted">
                     /
@@ -80,17 +157,102 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className="mt-8">
+        <div role="search" className="mt-6 grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,16rem)]">
+          <div>
+            <label htmlFor={searchId} className="ui-label block">
+              Buscar por título
+            </label>
+            <input
+              id={searchId}
+              type="search"
+              value={text}
+              maxLength={MAX_QUERY_LENGTH}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Ex.: paisagem, retrato"
+              autoComplete="off"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor={sortId} className="ui-label block">
+              Ordenar por
+            </label>
+            <select
+              id={sortId}
+              value={sort}
+              onChange={(e) => updateParams({ sort: e.target.value as LotSort })}
+              className={inputClass}
+            >
+              {sorts.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-8" aria-busy={lots.isFetching && !lots.isFetchingNextPage}>
           {lots.isPending && <LotGridSkeleton />}
-          {lots.isError && <p className={errorClass}>{errorMessage(lots.error)}</p>}
-          {lots.isSuccess && lots.data.lots.length === 0 && (
-            <p className="ui-label border border-line px-6 py-16 text-center text-muted">{current.empty}</p>
+
+          {lots.isError && !lots.data && (
+            <div className="space-y-6">
+              <p role="alert" className={errorClass}>
+                {errorMessage(lots.error)}
+              </p>
+              <button type="button" onClick={() => lots.refetch()} className={secondaryButtonClass}>
+                Tentar de novo
+              </button>
+            </div>
           )}
-          {lots.isSuccess && lots.data.lots.length > 0 && (
-            <div className="lot-list -mx-3 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
-              {lots.data.lots.map((lot, i) => (
+
+          {lots.data && items.length === 0 && (
+            <div role="status" className="border border-line px-6 py-16 text-center">
+              <p className="ui-label text-muted">
+                Nenhum lote encontrado{q && <> para “{q}”</>}
+              </p>
+              {q && (
+                <button type="button" onClick={clearSearch} className={`${secondaryButtonClass} mt-6`}>
+                  Limpar busca
+                </button>
+              )}
+            </div>
+          )}
+
+          {items.length > 0 && (
+            <div
+              className={`lot-list -mx-3 grid gap-x-6 gap-y-10 transition-opacity duration-200 sm:grid-cols-2 lg:grid-cols-4 ${
+                lots.isPlaceholderData ? 'opacity-60' : ''
+              }`}
+            >
+              {items.map((lot, i) => (
                 <LotCard key={lot.id} lot={lot} index={i} />
               ))}
+            </div>
+          )}
+
+          {lots.data && lots.isRefetchError && (
+            <p role="alert" className={`${errorClass} mt-8`}>
+              Não foi possível atualizar a lista: {errorMessage(lots.error)}
+            </p>
+          )}
+
+          {lots.isFetchNextPageError && (
+            <p role="alert" className={`${errorClass} mt-8`}>
+              Não foi possível carregar mais lotes: {errorMessage(lots.error)}
+            </p>
+          )}
+
+          {lots.hasNextPage && !lots.isPlaceholderData && (
+            <div className="mt-12 flex justify-center">
+              <button
+                type="button"
+                onClick={() => lots.fetchNextPage()}
+                disabled={lots.isFetchingNextPage}
+                className={secondaryButtonClass}
+              >
+                {lots.isFetchingNextPage ? 'Carregando...' : lots.isFetchNextPageError ? 'Tentar de novo' : 'Carregar mais'}
+              </button>
             </div>
           )}
         </div>

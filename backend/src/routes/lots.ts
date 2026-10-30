@@ -9,6 +9,9 @@ import { phaseOf, toSummary, toView } from '../lib/lots';
 import { placeBid } from '../services/bids';
 import { settleLot } from '../services/settlement';
 import { emitLotEvent, onLotEvent } from '../lib/events';
+import { bidLimiter } from '../lib/rateLimit';
+import { cancelLot } from '../services/cancel';
+
 
 export const lotsRouter = Router();
 
@@ -42,9 +45,29 @@ const createLotSchema = z
     path: ['endsAt'],
   });
 
+const PRICE_SORT_CAP = 1000;
+
 const listQuerySchema = z.object({
   phase: z.enum(['live', 'scheduled', 'ended']).optional(),
+  q: z.string().trim().max(100).optional(),
+  sort: z.enum(['ending', 'newest', 'bids', 'price_asc', 'price_desc']).optional(),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  limit: z.coerce.number().int().min(1).max(LIST_LIMIT).default(LIST_LIMIT),
 });
+
+function orderByFor(
+  sort: string | undefined,
+  phase: string | undefined,
+): Prisma.LotOrderByWithRelationInput[] {
+  switch (sort) {
+    case 'newest':
+      return [{ createdAt: 'desc' }, { id: 'asc' }];
+    case 'bids':
+      return [{ bidCount: 'desc' }, { endsAt: 'asc' }, { id: 'asc' }];
+    default:
+      return [{ endsAt: phase === 'ended' ? 'desc' : 'asc' }, { id: 'asc' }];
+  }
+}
 
 function lotNotFound() {
   return new AppError(404, 'LOT_NOT_FOUND', 'Lote não encontrado.');
@@ -98,16 +121,56 @@ lotsRouter.get(
   '/',
   asyncHandler(async (req, res) => {
     const parsed = listQuerySchema.safeParse(req.query);
-    if (!parsed.success) throw badRequest('Fase inválida. Use live, scheduled ou ended.');
-    const phase = parsed.data.phase;
+    if (!parsed.success) {
+      throw badRequest(
+        'Parâmetros inválidos. Use phase (live, scheduled, ended), q (até 100 caracteres), ' +
+          'sort (ending, newest, bids, price_asc, price_desc), page e limit (1 a 50).',
+      );
+    }
+    const { phase, sort, page, limit } = parsed.data;
+    const q = parsed.data.q || undefined;
 
     const now = new Date();
-    const lots = await prisma.lot.findMany({
-      where: whereForPhase(phase, now),
-      orderBy: { endsAt: phase === 'ended' ? 'desc' : 'asc' },
-      take: LIST_LIMIT,
+    const phaseWhere = whereForPhase(phase, now);
+    const where: Prisma.LotWhereInput = q
+      ? { AND: [phaseWhere, { title: { contains: q, mode: 'insensitive' } }] }
+      : phaseWhere;
+    const skip = (page - 1) * limit;
+
+    const total = await prisma.lot.count({ where });
+    let lots;
+
+    if (sort === 'price_asc' || sort === 'price_desc') {
+      const rows = await prisma.lot.findMany({
+        where,
+        select: { id: true, startPriceCents: true, currentPriceCents: true },
+        take: PRICE_SORT_CAP,
+      });
+      const dir = sort === 'price_asc' ? 1 : -1;
+      const price = (r: (typeof rows)[number]) => r.currentPriceCents ?? r.startPriceCents;
+      rows.sort((a, b) => dir * (price(a) - price(b)) || a.id.localeCompare(b.id));
+
+      const ids = rows.slice(skip, skip + limit).map((r) => r.id);
+      const found = await prisma.lot.findMany({ where: { id: { in: ids } } });
+      const byId = new Map(found.map((l) => [l.id, l]));
+      lots = ids.map((id) => byId.get(id)).filter((l): l is NonNullable<typeof l> => !!l);
+    } else {
+      lots = await prisma.lot.findMany({
+        where,
+        orderBy: orderByFor(sort, phase),
+        skip,
+        take: limit,
+      });
+    }
+
+    res.json({
+      lots: lots.map((l) => toSummary(l, now)),
+      serverTime: now.toISOString(),
+      total,
+      page,
+      pageSize: limit,
+      hasMore: skip + lots.length < total,
     });
-    res.json({ lots: lots.map((l) => toSummary(l, now)), serverTime: now.toISOString() });
   }),
 );
 
@@ -153,33 +216,11 @@ lotsRouter.post(
   requireRole('AUCTIONEER'),
   asyncHandler(async (req, res) => {
     const id = String(req.params.id);
-    const lot = await prisma.lot.findUnique({ where: { id } });
-    if (!lot) throw lotNotFound();
-    if (lot.auctioneerId !== req.user!.userId) {
-      throw forbidden('Este lote pertence a outro leiloeiro.');
-    }
-
-    if (lot.status === 'CANCELLED') return res.json(toSummary(lot));
-    if (phaseOf(lot, new Date()) === 'ended') {
-      throw conflict('ENDED', 'Este lote já foi encerrado.');
-    }
-    if (lot.bidCount > 0) {
-      throw conflict('LOT_HAS_BIDS', 'Não é possível cancelar um lote que já recebeu lances.');
-    }
-
-    const result = await prisma.lot.updateMany({
-      where: { id: lot.id, status: 'ACTIVE', bidCount: 0 },
-      data: { status: 'CANCELLED' },
-    });
-    if (result.count === 0) {
-      throw conflict('LOT_HAS_BIDS', 'O lote recebeu um lance e não pode mais ser cancelado.');
-    }
-
-    const updated = await prisma.lot.findUniqueOrThrow({ where: { id: lot.id } });
-    res.json(toSummary(updated));
+    const { lot, refundedCents } = await cancelLot(id, req.user!.userId);
+    if (refundedCents > 0) emitLotEvent(id, 'settled');
+    res.json({ ...toSummary(lot), refundedCents });
   }),
 );
-
 
 
 const bidSchema = z.object({
@@ -190,6 +231,7 @@ lotsRouter.post(
   '/:id/bids',
   requireAuth,
   requireRole('BIDDER'),
+  bidLimiter,
   validate(bidSchema),
   asyncHandler(async (req, res) => {
     const id = String(req.params.id);
